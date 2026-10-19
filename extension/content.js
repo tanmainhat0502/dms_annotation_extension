@@ -655,7 +655,8 @@
   }
 
   function onEyeGroupMouseDown(event) {
-    if (event.button !== 0 || event.metaKey || event.altKey || event.shiftKey || state.eyeGroupDrag) return;
+    if (event.button !== 0 || event.metaKey || event.altKey || event.shiftKey || state.eyeGroupDrag ||
+        !viewOrStageTarget(event)) return;
     const resize = event.ctrlKey ? null : eyeResizeAtEvent(event);
     const drag = resize || eyeGroupAtEvent(event, event.ctrlKey);
     if (!drag) return;
@@ -1788,7 +1789,7 @@
     return true;
   }
 
-  function bboxDeleteTarget(event) {
+  function viewOrStageTarget(event) {
     const canvas = document.getElementById("view");
     const stage = document.getElementById("stage");
     return event.target === canvas || (!!stage && event.target === stage);
@@ -1832,7 +1833,7 @@
     const canvas = document.getElementById("view");
     const onCanvas = event.target === canvas;
     if (state.bboxMode === "delete") {
-      if (!bboxDeleteTarget(event)) return;
+      if (!viewOrStageTarget(event)) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       const point = bboxEventPoint(event).sourcePoint;
@@ -1917,7 +1918,7 @@
       if (canvas) canvas.style.cursor = "crosshair";
       return;
     }
-    if (state.bboxMode === "delete" && bboxEditingAvailable() && bboxDeleteTarget(event)) {
+    if (state.bboxMode === "delete" && bboxEditingAvailable() && viewOrStageTarget(event)) {
       const point = bboxEventPoint(event);
       ED.mouse = point.canvasPoint.map((value, index) => index ?
         Math.max(0, Math.min(point.canvas.height, value)) : Math.max(0, Math.min(point.canvas.width, value)));
@@ -3322,7 +3323,7 @@
   }
 
   function onViewContextMenu(event) {
-    if (state.bboxMode === "delete" && bboxDeleteTarget(event)) {
+    if (state.bboxMode === "delete" && viewOrStageTarget(event)) {
       event.preventDefault();
       event.stopImmediatePropagation();
       commitBboxDeletePolygon();
@@ -3385,9 +3386,11 @@
     }
     if (!event.ctrlKey && !event.metaKey && !event.altKey && !typing && !anyBulkDialogOpen() &&
         (event.code === "KeyA" || event.code === "KeyD") && pageLabelingReady()) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      navigateOrganizedFrames(event.code === "KeyA" ? -1 : 1, event.shiftKey ? 10 : 1);
+      // Fall back to the page's own A/D when the organized list cannot place the current frame.
+      if (navigateOrganizedFrames(event.code === "KeyA" ? -1 : 1, event.shiftKey ? 10 : 1)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
       return;
     }
     if (event.code === "KeyV" && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey &&

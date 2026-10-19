@@ -24,7 +24,19 @@ if (Test-Path -LiteralPath $temporaryPath) {
     Remove-Item -LiteralPath $temporaryPath -Force
 }
 
-Compress-Archive -Path (Join-Path $extensionRoot '*') -DestinationPath $temporaryPath -CompressionLevel Optimal
+# Compress-Archive in Windows PowerShell 5.1 stores "\" separators; the ZIP spec requires "/".
+Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+$extensionPrefix = (Get-Item -LiteralPath $extensionRoot).FullName.TrimEnd('\') + '\'
+$archive = [System.IO.Compression.ZipFile]::Open($temporaryPath, [System.IO.Compression.ZipArchiveMode]::Create)
+try {
+    foreach ($file in Get-ChildItem -LiteralPath $extensionRoot -File -Recurse) {
+        $entryName = $file.FullName.Substring($extensionPrefix.Length).Replace('\', '/')
+        [void][System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+            $archive, $file.FullName, $entryName, [System.IO.Compression.CompressionLevel]::Optimal)
+    }
+} finally {
+    $archive.Dispose()
+}
 Move-Item -LiteralPath $temporaryPath -Destination $archivePath -Force
 
 $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $archivePath
