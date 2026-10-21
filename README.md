@@ -2,7 +2,7 @@
 
 A Chrome extension for faster annotation in **DMS Labeling**. Group frames by clip, edit labels with keyboard shortcuts, and repeat changes across multiple frames.
 
-**Version 1.6.29 · English**
+**Version 1.6.30 · English**
 
 [Download the latest release](https://github.com/tanmainhat0502/dms_annotation_extension/releases/latest) · [Detailed usage guide](extension/README.md) · [Changelog](CHANGELOG.md)
 
@@ -58,7 +58,7 @@ Reload your DMS tab and open **Labeling**. Search for a part, expand a clip such
 | Edit bounding boxes | Press `N` and click two opposite corners to create a box. Use `M` to draw a region that deletes boxes inside it. Handles keep tracking the pointer across image edges; boxes dragged outside are clipped on release. |
 | Copy annotations | Press `Ctrl+B` to copy boxes, eye 15pt, face 7pt, or seatbelt edits to previous/next frames. Enter a frame count or `end` to reach the clip boundary. |
 | Copy one box | Select a box, then use `Ctrl+B`. Matching target boxes are replaced and duplicates merged; other objects stay. If there is no match, a new box is added. Choosing all boxes replaces the entire target box list. |
-| Adjust any bbox edge | For every bbox label, double-click the middle handle of the top, bottom, left, or right edge and drag it. `Ctrl+B` applies that edge's exact position to matching boxes, preserving their other three edges. A missing match adds the edited source box. |
+| Adjust any bbox edge | For every bbox label, double-click the middle handle of the top, bottom, left, or right edge and drag it. `Ctrl+B` changes only that coordinate on each existing matching box; its other three coordinates and the number of boxes stay unchanged. |
 | Edit seatbelt masks | Draw an add polygon with `N`, erase with `M`, or accept a green SAM3 preview with `R`. Bulk edits can use just the latest change or the entire mask. |
 | Transform eye 15pt | Drag inside the dashed box to move the eye, `Ctrl` + drag to rotate, or drag its handles to resize all 15 points. |
 | Review and undo | Mark frames with `V`, repeat bbox operations on marked frames, or reopen selected Done frames. `Z` undoes edits; one bbox undo can restore an entire batch. |

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.30 - 2026-10-21
+
+- Fix midpoint edge adjustment on small boxes such as nose: after double-clicking top, bottom, left, or right, dragging is locked to that exact edge even when the native corner hit area overlaps it.
+- Apply an adjusted edge only to an existing corresponding target box. Preserve its other three coordinates and target-frame dimensions, and never add, remove, merge, or duplicate boxes when propagating an edge.
+- Keep numeric ranges such as 200 bounded by the current clip exactly like `end`, skip Done frames, and avoid saving unchanged targets on repeated application.
+- Add regression coverage for repeated nose adjustments over a 69-frame clip, `200` versus `end`, all bbox edge transforms, missing targets, duplicate prevention, and unchanged-frame saves.
+
 ## 1.6.29 - 2026-10-21
 
 - Add a sticky Done all checkbox below each part's frame count. Check to mark the current label's complete part Done; uncheck to set every frame In progress. Show an intermediate state for partially completed parts.

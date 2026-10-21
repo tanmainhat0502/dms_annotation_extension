@@ -85,19 +85,19 @@ edge_sources = [outer, edge_after, edge_neighbor]
 edge_operation = {"type": "edge", "coord": 2, "value": 12, "rank": 1, "itemIndex": 1,
                   "originalBox": edge_before["box"], "currentBox": edge_after["box"]}
 edge_cases = [
-    ("missing inner box adds the edited source instead of shrinking the outer body",
-     edge_sources, edge_operation, [target_outer, edge_neighbor], [target_outer, edge_neighbor, edge_after]),
+    ("missing inner box stays missing instead of adding a source-sized duplicate",
+     edge_sources, edge_operation, [target_outer, edge_neighbor], [target_outer, edge_neighbor]),
     ("match the old small box even after a large width correction",
      edge_sources, edge_operation, [target_outer, box(4.2, 7.1, 6.2, 10.1), edge_neighbor],
      [target_outer, box(4.2, 7.1, 12, 10.1), edge_neighbor]),
     ("reordered targets still change only the matching box and one edge",
      edge_sources, edge_operation, [edge_neighbor, box(4.2, 7.1, 6.2, 10.1), target_outer],
      [edge_neighbor, box(4.2, 7.1, 12, 10.1), target_outer]),
-    ("empty target receives one edited box",
-     edge_sources, edge_operation, [], [edge_after]),
-    ("duplicate target boxes collapse after edge propagation",
+    ("empty target stays empty",
+     edge_sources, edge_operation, [], []),
+    ("existing target count stays unchanged even when adjusted geometry coincides",
      edge_sources, edge_operation, [target_outer, edge_before, edge_after, edge_neighbor],
-     [target_outer, edge_after, edge_neighbor]),
+     [target_outer, edge_after, edge_after, edge_neighbor]),
     ("inward edge movement matches the original geometry",
      [outer, edge_before, edge_neighbor],
      {**edge_operation, "value": 6, "originalBox": edge_after["box"], "currentBox": edge_before["box"]},
@@ -111,6 +111,11 @@ edge_cases = [
     ("missing reference geometry must not fall back to target rank",
      edge_sources, {"type": "edge", "coord": 2, "value": 12, "rank": 1},
      [target_outer, edge_neighbor], [target_outer, edge_neighbor]),
+    ("moved single target keeps its other three coordinates without a geometry overlap",
+     [edge_before],
+     {**edge_operation, "coord": 1, "value": 2, "itemIndex": 0,
+      "originalBox": edge_before["box"], "currentBox": [4,2,6,10]},
+     [box(14,5,20,12)], [box(14,2,20,12)]),
 ]
 
 

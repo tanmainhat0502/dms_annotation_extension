@@ -1,10 +1,10 @@
-# Manual testing: 1.6.29
+# Manual testing: 1.6.30
 
 Use this checklist to verify cached playback, the timeline lock, bbox editing, sticky clip controls, and image preloading in your DMS environment.
 
 ## Install
 
-1. Extract `dist/NOTA_Labeling_Organizer_Extension_v1.6.29.zip`, or use this repository's `extension` folder.
+1. Extract `dist/NOTA_Labeling_Organizer_Extension_v1.6.30.zip`, or use this repository's `extension` folder.
 2. In `chrome://extensions`, disable the older Organizer version. Click **Load unpacked** and select the folder containing `manifest.json`.
 3. Reload the DMS tab. Open **Labeling**, choose a label, and open a frame.
 4. Find **auto_load_img** and **Stop** directly below the part search field.
@@ -25,7 +25,9 @@ Use this checklist to verify cached playback, the timeline lock, bbox editing, s
 - Click the padlock to the right of the bottom timeline. It should close and turn gold. Click, double-click, or drag near either end of the timeline: the current frame must stay in place. Click the lock again and verify timeline clicks navigate normally.
 - While locked, use `A` / `D`, `Shift+D`, `Space`, and sidebar frame selection. These should still work. Reload DMS: the lock should keep your last choice. Resize the window and collapse the sidebars: the lock must remain beside the timeline without covering the frame counter.
 - For head, face, nose, mouth, hand, eye, body, cigarette, e-cigarette, phone, can, bottle, and mask: double-click the midpoint handle of a box's top edge, then drag. Repeat for bottom, left, and right. Only the chosen edge should change. Check while zoomed/panned and near the image boundary.
-- After adjusting an edge, press `Ctrl+B`. The title must show the correct edge and label. Apply to a few next/previous frames, then try `end`: matching boxes should receive the chosen edge position, keep their other three edges, preserve object classes and unrelated boxes, and skip Done frames. No match should add the edited source box.
+- On a small nose box, double-click the top midpoint and drag upward with a little horizontal mouse movement. The left/right/bottom coordinates must not move. Repeat the adjustment once more.
+- After adjusting an edge, press `Ctrl+B`. The title must show the correct edge and label. Apply to a few next/previous frames, then try `end`: matching boxes should receive the chosen edge position, keep their other three coordinates, preserve their current width/height on the untouched axis, preserve object classes and unrelated boxes, and skip Done frames. A target with no match must remain unchanged; the operation must never add or remove a box.
+- In a 69-frame clip, enter `200` and verify it stops at the clip's final frame exactly like `end`, without updating a target more than once. Repeat the adjust-and-apply workflow and verify no duplicate boxes appear.
 - Press `Z` after the batch: all target boxes should return to their previous coordinates. Press `Z` again to undo the source edge adjustment. Switching frame, label, or session must not reuse a previous edge operation.
 - Press `N`, click inside the image, then click the black margin below it. The box should save with its bottom edge at the image boundary. Repeat for all edges/corners and while zoomed or panned.
 - Start the box in the black margin and finish inside the image. The first corner should snap to the edge. Two corners entirely outside the same edge must not save an empty box; move inside and click again, or cancel with `Esc`.
@@ -64,6 +66,7 @@ python tests/test_playback.py
 python tests/test_bbox_previous.py
 python tests/test_bbox_drag.py
 python tests/test_part_done.py
+python tests/test_bbox_adjust.py
 ```
 
 The image-loading tests use delayed local responses, actual IndexedDB and Chromium image decoding. They cover request limits, cache hits, Stop/resume, part transitions, failed optimistic Done saves, scope changes, failed image retries, quota errors, and integration with the Organizer. When the saved local DMS source is available, the integration check uses its original `getFrame` and `show` implementations.

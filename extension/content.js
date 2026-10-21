@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.6.29";
+  const VERSION = "1.6.30";
   const ROOT_ID = "nota-labeling-organizer-v1";
   const STYLE_ID = "nota-labeling-organizer-style-v1";
   const STORAGE_KEY = "nota-labeling-organizer-filter-v1";
@@ -2728,6 +2728,32 @@
     if (!bboxEditingAvailable()) return;
     const canvas = document.getElementById("view");
     const onCanvas = event.target === canvas;
+    const edgePatch = state.bboxEdgePatch;
+    if (!edgePatch?.ready && bboxEdgePatchMatches(edgePatch) && !event.shiftKey) {
+      const geometry = bboxEdgeGeometry(event);
+      if (geometry && geometry.itemIndex === edgePatch.itemIndex && geometry.coord === edgePatch.coord) {
+        // Small boxes (nose in particular) can have a midpoint handle inside
+        // the native corner tolerance. Start the exact selected edge here so
+        // sideways pointer drift cannot resize a second edge.
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        try { if (typeof pause === "function") pause(); } catch (_) {}
+        try { if (typeof lsTouch === "function") lsTouch(); } catch (_) {}
+        const nativeCorner = { 0: 6, 1: 4, 2: 7, 3: 5 }[edgePatch.coord];
+        ED.sel = edgePatch.itemIndex;
+        ED.selSet?.clear();
+        ED.drag = {
+          n: edgePatch.itemIndex,
+          corner: nativeCorner,
+          p0: bboxEventPoint(event).canvasPoint,
+          box0: ED.items[edgePatch.itemIndex].box.slice(),
+          moved: false,
+          edgeAdjust: true
+        };
+        if (typeof edRepaint === "function") edRepaint();
+        return;
+      }
+    }
     if (event.target === bboxStage && !event.shiftKey && bboxPointerDragAvailable() &&
         typeof hitTest === "function") {
       const hit = hitTest(bboxEventPoint(event).canvasPoint);
@@ -3099,7 +3125,7 @@
           ? `Set the ${operation.edge} edge to ${Number(operation.value).toFixed(1)} px`
           : `Copy ${sourceCount} ${eyeMode ? "eye groups" : boxMode ? "boxes" : "face 7pt groups"}`;
       preview.textContent = `${actionText} across ${picked.targets.length} ${directionText} frames` +
-        (operation?.type === "edge" ? " · keep other edges and boxes; add the edited source box if no match exists" :
+        (operation?.type === "edge" ? " · keep the target box's other three edges; leave frames without a matching box unchanged" :
           operationMode ? " · keep other boxes and edges" : ` · ${writeText}`) +
         (skipped ? ` · skip ${skipped} Done frames` : "") + ". Up to 4 requests run at a time.";
     }
@@ -3823,22 +3849,32 @@
       const source = sourceItems[operation.itemIndex] || {};
       const original = cloneGenericItems([{ ...source, box: operation.originalBox }])[0];
       const current = cloneGenericItems([{ ...source, box: operation.currentBox }])[0];
-      // Dragging a single edge can change width/height drastically. Match
-      // either the original or edited geometry, never the left/right rank.
+      // Edge adjustment edits an existing target box in place. It must never
+      // copy the source box into a target frame: doing so changes the other
+      // three coordinates and creates duplicates when boxes move between
+      // frames. Prefer geometry, then use the same horizontal role when every
+      // source box has a target counterpart.
       const matches = findGenericBboxMatches(next, [original, current], sourceItems);
       const best = matches.reduce((chosen, match) => !chosen || match.score > chosen.score ? match : chosen, null);
-      const target = best ? next[best.index] : current;
+      let targetIndex = best?.index;
+      if (targetIndex === undefined) {
+        const selectedSource = sourceItems[operation.itemIndex];
+        const compatible = (item) => !(selectedSource?.cls && item?.cls && selectedSource.cls !== item.cls);
+        const sourceOrder = bboxHorizontalOrder(sourceItems).filter((entry) => compatible(sourceItems[entry.index]));
+        const targetOrder = bboxHorizontalOrder(next).filter((entry) => compatible(next[entry.index]));
+        const rank = sourceOrder.findIndex((entry) => entry.index === operation.itemIndex);
+        if (rank >= 0 && sourceOrder.length === targetOrder.length && targetOrder[rank]) {
+          targetIndex = targetOrder[rank].index;
+        }
+      }
+      if (targetIndex === undefined || !next[targetIndex]?.box) return next;
+      const target = next[targetIndex];
       target.box[coord] = value;
       if (coord === 0) target.box[0] = Math.max(0, Math.min(target.box[2] - 1, target.box[0]));
       if (coord === 1) target.box[1] = Math.max(0, Math.min(target.box[3] - 1, target.box[1]));
       if (coord === 2) target.box[2] = Math.min(width, Math.max(target.box[0] + 1, target.box[2]));
       if (coord === 3) target.box[3] = Math.min(height, Math.max(target.box[1] + 1, target.box[3]));
-      if (!best) {
-        next.push(target);
-      } else {
-        const duplicates = new Set(matches.filter((match) => match.index !== best.index).map((match) => match.index));
-        return next.filter((_, index) => !duplicates.has(index));
-      }
+      return next;
     }
     return next;
   }
@@ -3877,7 +3913,6 @@
       const result = await runQueue(targets, async (g) => {
         let nextItems;
         const currentItems = await getFrameGenericItems(g, context.label, context.generation);
-        undoFrames.push({ g, items: cloneGenericItems(currentItems) });
         if (operationMode) {
           nextItems = applyQuickOperationToItems(currentItems, operation, context.sourceItems);
         } else if (scope === "selected") {
@@ -3886,6 +3921,8 @@
         } else {
           nextItems = cloneGenericItems(sourceItems);
         }
+        if (JSON.stringify(nextItems) === JSON.stringify(currentItems)) return;
+        undoFrames.push({ g, items: cloneGenericItems(currentItems) });
         await saveFrameGenericItems(g, context.label, nextItems, context.generation);
       }, (done, total) => {
         preview.classList.remove("err");

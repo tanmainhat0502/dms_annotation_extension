@@ -158,16 +158,14 @@ def main():
         print('PASS: 13 bbox labels x 4 edges; native drag/save, Ctrl+B, other edges/boxes/classes preserved, Done and clip boundary, batch/source undo')
 
         reset('phone');edit(EDGES[0])
-        expected=page.evaluate('ED.items[0]')
         apply('before')
-        assert len(posts)==1 and posts[0]['i']==0 and posts[0]['items']==[expected]
-        undo()
+        assert posts==[], posts
         assert page.evaluate('S.ledits["segment:0"].phone') == []
         page.locator('#view').evaluate("el=>el.style.transform='translate(12px,-8px) scale(1.25)'")
         reset('face_mask');edit(EDGES[3])
         assert page.evaluate('ED.items[0].box') == [200,150,540,450]
         page.locator('#view').evaluate("el=>el.style.transform='none'")
-        print('PASS: previous-frame propagation to missing box; undo; zoom/pan edge selection')
+        print('PASS: missing target stays missing without duplicate; zoom/pan edge selection')
 
         for label in ('face_lmk','eye_lmk','seatbelt'):
             reset(label);page.mouse.dblclick(*point([350,150]))

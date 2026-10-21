@@ -1,6 +1,6 @@
 # NOTA Labeling Organizer — usage guide
 
-**Version 1.6.29 · English**
+**Version 1.6.30 · English**
 
 For installation screenshots and the complete shortcut tables, see the [GitHub README](https://github.com/tanmainhat0502/dms_annotation_extension#readme).
 
@@ -81,9 +81,9 @@ Example: C at frame 2 copies frame 1; after editing frame 3, C at frame 4 copies
 
 ### Edge adjustment for every bbox label
 
-For all 13 bbox labels listed above, double-click the middle handle of the **top, bottom, left, or right** edge, then drag it. The original edge is white and the edited edge is green. Only the chosen edge changes; it stays inside the image.
+For all 13 bbox labels listed above, double-click the middle handle of the **top, bottom, left, or right** edge, then drag it. The original edge is white and the edited edge is green. Only the chosen edge changes; it stays inside the image. This exact-edge drag also applies to small boxes such as nose, where the midpoint is close to corner handles.
 
-Press `Ctrl+B`, choose previous or next frames, and enter a count or `end`. The matching box in each target frame receives that edge's **absolute position**, keeping its other three edges. If no match exists, the edited source box is added. Other boxes stay; Done frames are skipped. The dialog shows the active label and edge.
+Press `Ctrl+B`, choose previous or next frames, and enter a count or `end`. The matching box in each target frame receives that edge's **absolute position**, keeping its other three coordinates and its own width/height on the untouched axis. The operation never adds or removes boxes; a frame without a corresponding box stays unchanged. Other boxes stay; Done frames are skipped. A number larger than the remaining clip, such as `200` for 69 frames, stops at the same clip boundary as `end`. The dialog shows the active label and edge.
 
 Press `Z` to undo the whole batch, then `Z` again to undo the source edge edit. This edge workflow applies to bounding boxes; face 7pt, eye 15pt, and seatbelt keep their own editing tools.
 
