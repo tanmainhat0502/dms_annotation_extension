@@ -2,7 +2,7 @@
 
 A Chrome extension for faster annotation in **DMS Labeling**. Group frames by clip, edit labels with keyboard shortcuts, and repeat changes across multiple frames.
 
-**Version 1.6.35 · English**
+**Version 1.6.36 · English**
 
 [Download the latest release](https://github.com/tanmainhat0502/dms_annotation_extension/releases/latest) · [Detailed usage guide](extension/README.md) · [Changelog](CHANGELOG.md)
 
@@ -54,7 +54,7 @@ Reload your DMS tab and open **Labeling**. Search for a part, expand a clip such
 | Filter by box count | For bbox labels, type exact counts such as `2,3,4` in **BBox** below part search to show only frames with that many boxes. **All** or an empty field shows every frame. Counts include saved edits and update after editing. `A` / `D`, `Space`, and **auto_load_img** follow the filtered frames. |
 | Lock the timeline | Click the padlock to the right of the bottom timeline. When locked, clicking or dragging the timeline cannot jump to another frame. `A` / `D`, `Space`, and sidebar frame selection still work. Click again to unlock; your choice is remembered after reload. |
 | Load images ahead | Click **auto_load_img** to download the current part and the next unfinished part in the background. See their combined image count; **Stop** pauses and keeps downloaded images. |
-| Filter frame status | Tick **Show done**, **Show in progress**, and **Show not checked** below the progress bar. Combine any choices with the part search; navigation follows the filtered frames. Your choices are remembered after reload, and changing a filter keeps the part or clip you are viewing in place even when the current frame was hidden. |
+| Filter frame status | Tick **Show done**, **Show in progress**, and **Show not checked** below the progress bar. Combine any choices with the part search; navigation follows the filtered frames. Choices are remembered after reload. The checkboxes stay in view while you use them; farther down the list, the visible frame/clip/part stays in place. |
 | Change clip status | Hover over or click **Done**, **Not checked**, or **In progress** on a clip, then choose one of the other two statuses. Only frames currently in the chosen source status change, including hidden frames in that clip. |
 | Set the whole part Done | Tick **Done all** below the part's frame count in the left column. Untick to set all its frames to **In progress**. The control follows scrolling within the part; a dash means only some frames are Done. |
 | Edit bounding boxes | Press `N` and click two opposite corners to create a box. Use `M` to draw a region that deletes boxes inside it. Handles keep tracking the pointer across image edges; boxes dragged outside are clipped on release. |

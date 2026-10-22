@@ -92,7 +92,11 @@ async def finished(page):
 
 
 async def transition(page, source, target):
-    await page.locator(CLIP + f' button[data-state="{source}"]').click()
+    trigger = page.locator(CLIP + f' button[data-state="{source}"]')
+    # Finish scrolling before opening the menu: scroll events dismiss menus.
+    await trigger.scroll_into_view_if_needed()
+    await settle(page)
+    await trigger.click()
     await page.locator(f'#nl-clip-status-menu button[data-target-state="{target}"]').click()
     await finished(page)
 
@@ -150,12 +154,13 @@ async def test_filter_scroll_anchor(browser):
     await select_states(page, ['wip', 'todo'])
     await page.evaluate("""() => {
       const pane=document.querySelector('#labPane');
-      const part=document.querySelector('.grp[data-part-name="Phone call"]');
+      const part=document.querySelector('.grp[data-part-name="Bottle"]');
       const toolbar=document.querySelector('#nota-labeling-organizer-v1');
-      pane.scrollTop += part.getBoundingClientRect().top-toolbar.getBoundingClientRect().bottom-12;
+      pane.scrollTop += part.getBoundingClientRect().top-pane.getBoundingClientRect().top-toolbar.offsetHeight-12;
     }""")
     await settle(page)
-    part = '.grp[data-part-name="Phone call"]'
+    part = '.grp[data-part-name="Bottle"]'
+    assert await page.locator('#nl-status-filters').evaluate("el=>el.getBoundingClientRect().bottom<=document.querySelector('#labPane').getBoundingClientRect().top")
     before = (await page.locator(part).bounding_box())['y']
     await page.locator(FILTER.format('done')).evaluate("""input=>{
       input.checked=true;input.dispatchEvent(new Event('change',{bubbles:true}));
@@ -275,6 +280,8 @@ async def test_filtered_part_and_menu_lifecycle(browser):
     part = '.grp[data-part-name="Phone call"]'
     await page.evaluate('show(229)')
     assert await page.locator(part + ' .nl-part-total').inner_text() == '149 frames'
+    await page.locator(part + ' .nl-part-done').scroll_into_view_if_needed()
+    await settle(page)
     await click_without_scrolling(page, part + ' .nl-part-done')
     await page.wait_for_function("!document.querySelector('.nl-part-tools[aria-busy=true]')")
     assert await page.locator(part).count() == 0
@@ -282,6 +289,8 @@ async def test_filtered_part_and_menu_lifecycle(browser):
     await select_states(page, ['done'])
     await page.evaluate('show(228)')
     assert await page.locator(part + ' .nl-part-done').is_checked()
+    await page.locator(part + ' .nl-part-done').scroll_into_view_if_needed()
+    await settle(page)
     await click_without_scrolling(page, part + ' .nl-part-done')
     await page.wait_for_function("!document.querySelector('.nl-part-tools[aria-busy=true]')")
     assert await page.locator(part).count() == 0

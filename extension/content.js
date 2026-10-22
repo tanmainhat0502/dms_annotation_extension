@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.6.35";
+  const VERSION = "1.6.36";
   const ROOT_ID = "nota-labeling-organizer-v1";
   const STYLE_ID = "nota-labeling-organizer-style-v1";
   const STORAGE_KEY = "nota-labeling-organizer-filter-v1";
@@ -122,6 +122,7 @@
     bboxEdgePatch: null,
     renderingSidebar: false,
     sidebarRenderPosition: null,
+    filterNavigation: null,
     sidebarScope: null,
     regionScope: null,
     regionFrame: null,
@@ -1562,6 +1563,16 @@
     if (!currentMatches && !allowHiddenCurrent) return null;
     const pane = state.pane;
     const bounds = pane.getBoundingClientRect();
+    const filters = document.getElementById("nl-status-filters")?.getBoundingClientRect();
+    if (allowHiddenCurrent && filters?.height > 0 && filters.bottom > bounds.top && filters.top < bounds.bottom) {
+      // While using the controls, preserve the controls' viewport. Anchoring a
+      // part below them would scroll away from the checkbox when Done parts
+      // are inserted above that part (even when scrollTop was initially zero).
+      return {
+        pane, generation: S.gen, label: S.labelSel, frame: S.shownG,
+        top: pane.scrollTop, left: pane.scrollLeft, offset: null, anchor: null
+      };
+    }
     const row = currentMatches ? current.getBoundingClientRect() : null;
     const contentTop = Math.max(bounds.top, state.toolbar?.getBoundingClientRect().bottom || bounds.top);
     let anchor = null;
@@ -1639,6 +1650,9 @@
 
   function revealCurrentFrame(current = state.list?.querySelector("li.cur")) {
     ensureCurrentClipOpen(current);
+    const pending = state.filterNavigation;
+    if (pending && pending.session === S.sess && pending.generation === S.gen &&
+        pending.label === S.labelSel && pending.target === Number(S.g)) return;
     current?.scrollIntoView({ block: "nearest" });
   }
 
@@ -1724,12 +1738,23 @@
     return state.statusFilters && FRAME_STATES.some((value) => !state.statusFilters[value]);
   }
 
-  function followFilteredFrame() {
+  function followFilteredFrame(preserveViewport = false) {
     const navigation = organizedNavigationIndex();
     const rows = navigation?.visible.rows || [];
     if (rows.length && !navigation.visible.positions.has(Number(S.shownG))) {
       const next = rows.find((li) => Number(li.dataset.g) > S.shownG) || rows[0];
-      if (typeof show === "function") show(Number(next.dataset.g));
+      if (typeof show === "function") {
+        if (!preserveViewport) show(Number(next.dataset.g));
+        else {
+          // A filter may select a replacement image asynchronously. Update its
+          // highlight without scrolling away from the user's filter controls.
+          const pending = { session: S.sess, generation: S.gen, label: S.labelSel, target: Number(next.dataset.g) };
+          state.filterNavigation = pending;
+          const clear = () => { if (state.filterNavigation === pending) state.filterNavigation = null; };
+          try { Promise.resolve(show(pending.target)).then(clear, clear); }
+          catch (error) { clear(); throw error; }
+        }
+      }
     } else {
       if (typeof drawBar === "function") drawBar();
       if (typeof paint === "function") paint();
@@ -1763,7 +1788,7 @@
         input.blur();
         buildSeq();
         renderLabList();
-        followFilteredFrame();
+        followFilteredFrame(true);
       });
       filters.append(label);
     }
