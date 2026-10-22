@@ -1,10 +1,10 @@
-# Manual testing: 1.6.35
+# Manual testing: 1.6.36
 
 Use this checklist to verify cached playback, the timeline lock, bbox editing, sticky clip controls, and image preloading in your DMS environment.
 
 ## Install
 
-1. Extract `dist/NOTA_Labeling_Organizer_Extension_v1.6.35.zip`, or use this repository's `extension` folder.
+1. Extract `dist/NOTA_Labeling_Organizer_Extension_v1.6.36.zip`, or use this repository's `extension` folder.
 2. In `chrome://extensions`, disable the older Organizer version. Click **Load unpacked** and select the folder containing `manifest.json`.
 3. Reload the DMS tab. Open **Labeling**, choose a label, and open a frame.
 4. Find **auto_load_img** and **Stop** directly below the part search field.
@@ -15,7 +15,7 @@ Use this checklist to verify cached playback, the timeline lock, bbox editing, s
 - In Change status, test Not checked, In progress, and Done with previous/next frame counts, `end`, and a count larger than the clip. The count must include the current frame, then continue in the selected direction. Only the active label in that clip should change. Hidden/Done frames are eligible, unchanged targets cause no extra saves, and annotation data stays unchanged. Label actions must still exclude the source frame.
 - Press `V` on Done, In progress, and Not checked frames across multiple clips, including bbox, landmark, and seatbelt labels. Select **Marked frames** in Change status: all marks are eligible, even hidden ones and the current frame if marked. Marks should remain after saving; V/Clear selection removes them, and changing label/session clears them.
 - Test Change status on a frame with no annotations, Enter to apply, and a failed request followed by retry. During saving, tabs and inputs must be disabled. A session/label/mode change must stop queued saves; stale responses must not enter a new session.
-- Under the progress bar, combine **Show done**, **Show in progress**, and **Show not checked**. Check each status alone, multiple statuses, all three, and none. Counts above the filters must stay unchanged. Scroll to a part away from the current frame, then show/hide Done: that visible part must stay at the same screen position even when completed parts appear above it or the hidden current frame reappears. Reload and verify the choices persist. Combine with part search and use `A` / `D` / `Space`: only matching frames should be visited.
+- Under the progress bar, combine **Show done**, **Show in progress**, and **Show not checked**. Check each status alone, multiple statuses, all three, and none. Counts above the filters must stay unchanged. With the checkboxes visible, toggle Show done repeatedly by mouse and keyboard: the checkboxes must stay in place, including when a hidden current frame reappears or a replacement image loads slowly. Repeat with the current clip open and collapsed, at the top and with the header partially scrolled. Farther down the list, repainting should preserve the visible frame/clip/part. Reload and verify the choices persist. Combine with part search and use `A` / `D` / `Space`: only matching frames should be visited.
 - Hover over each clip status button: it must show a source-frame count and exactly two destination options without saving. Try all six transitions on a mixed-status clip. Only source-status frames in the active-label clip should change, including hidden frames; annotations and other clips/labels must remain unchanged.
 - Test a fully Done clip: **Done** must be enabled so it can be reopened; the other source buttons must be disabled. Try keyboard Enter/Space/arrows/Esc, clicking outside, and scrolling with a menu open. The menu must not toggle the clip or trigger playback. Repeating a partially failed transition should save only remaining source frames.
 - Find **Done all** below a part's frame count in the left column. Scroll up/down inside a long part and resize the window: the checkbox and count should remain visible. Move into another part and verify its control takes over.
@@ -75,6 +75,7 @@ python tests/test_bbox_drag.py
 python tests/test_part_done.py
 python tests/test_bbox_adjust.py
 python tests/test_status_controls.py
+python tests/test_filter_scroll.py
 python tests/test_bulk_status.py
 ```
 

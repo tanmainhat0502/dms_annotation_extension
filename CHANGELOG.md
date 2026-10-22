@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.36 - 2026-10-22
+
+- Fix the remaining Show done jump at the top of the sidebar: keep the visible filter controls in place instead of anchoring a part below newly inserted Done groups. Continue anchoring list content when the controls are scrolled out of view.
+- Keep filter-triggered replacement images from scrolling the sidebar when loading finishes; preserve deliberate frame navigation.
+- Reproduce the v1.6.35 jump with real checkbox clicks and a scrolling header/preloader layout. Cover repeated toggles, open/collapsed clips, two sidebar widths, keyboard access, empty results, hidden current frames, delayed image loads, and later repaints.
+
 ## 1.6.35 - 2026-10-22
 
 - Keep the browsed sidebar part in place when Show done makes a hidden current frame visible again. Capture a filter-specific scroll anchor even when the current frame has no row in the filtered list.

@@ -1,6 +1,6 @@
 # NOTA Labeling Organizer — usage guide
 
-**Version 1.6.35 · English**
+**Version 1.6.36 · English**
 
 For installation screenshots and the complete shortcut tables, see the [GitHub README](https://github.com/tanmainhat0502/dms_annotation_extension#readme).
 
@@ -17,7 +17,7 @@ Playback reuses the frame-list index and updates only the previous/current rows 
 
 To prevent accidental jumps, click the **padlock to the right of the bottom timeline**. A closed, gold lock blocks clicks and drags on the timeline; the progress display, `A` / `D`, `Space`, and sidebar frame selection still work. Click the lock again to allow timeline navigation. The timeline starts unlocked and remembers your choice after a page reload.
 
-Below the progress bar, tick **Show done**, **Show in progress**, and **Show not checked** to choose which frames appear. Any combination works; no choices shows an empty list. These choices combine with part search, apply to `A` / `D` and `Space`, and are remembered after reload. Filtering does not change saved statuses or the progress totals. When a filter inserts or removes content above the viewport, the visible frame, clip, or part stays at the same screen position, including when Show done makes a hidden current frame reappear.
+Below the progress bar, tick **Show done**, **Show in progress**, and **Show not checked** to choose which frames appear. Any combination works; no choices shows an empty list. These choices combine with part search, apply to `A` / `D` and `Space`, and are remembered after reload. Filtering does not change saved statuses or the progress totals. While the checkboxes are visible, changing a filter keeps those controls at the same screen position. Farther down the list, the visible frame, clip, or part is kept in place. If the current frame is filtered out, loading its replacement does not scroll the sidebar away from the controls; deliberate frame navigation still reveals the selected frame.
 
 Each clip has **Done**, **Not checked**, and **In progress** source buttons. Hover over or click one, then choose either of the other statuses. For example, **Done → In progress** changes only that clip's Done frames; its other frames stay unchanged. The menu shows how many source frames exist, including frames hidden by filters. A button is disabled if no frames have that source status. Hovering or opening the menu does not save anything. Click a destination to save, or press `Esc` to close; keyboard users can open with `Enter`, `Space`, or an arrow key and select with the arrow keys.
 
