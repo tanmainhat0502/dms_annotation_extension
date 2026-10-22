@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NOTA Labeling Organizer",
-  "version": "1.6.30",
+  "version": "1.6.34",
   "description": "Group frames by clip; use body, hand and eye shortcuts, adjust any bbox edge, and apply annotations in bulk with Ctrl+B.",
   "icons": {
     "16": "icons/icon16.png",

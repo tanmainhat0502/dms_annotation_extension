@@ -1,27 +1,34 @@
-# Manual testing: 1.6.30
+# Manual testing: 1.6.34
 
 Use this checklist to verify cached playback, the timeline lock, bbox editing, sticky clip controls, and image preloading in your DMS environment.
 
 ## Install
 
-1. Extract `dist/NOTA_Labeling_Organizer_Extension_v1.6.30.zip`, or use this repository's `extension` folder.
+1. Extract `dist/NOTA_Labeling_Organizer_Extension_v1.6.34.zip`, or use this repository's `extension` folder.
 2. In `chrome://extensions`, disable the older Organizer version. Click **Load unpacked** and select the folder containing `manifest.json`.
 3. Reload the DMS tab. Open **Labeling**, choose a label, and open a frame.
 4. Find **auto_load_img** and **Stop** directly below the part search field.
 
 ## Review checklist
 
+- Open `Ctrl+B`: verify **Label actions** and **Change status** tabs. Select either tab, close with Esc, reopen, and reload DMS: the same tab must remain selected. Switching tabs must not discard a pending box-edge/mask operation. Return to Label actions before testing copy/delete/adjust below.
+- In Change status, test Not checked, In progress, and Done with previous/next frame counts, `end`, and a count larger than the clip. The count must include the current frame, then continue in the selected direction. Only the active label in that clip should change. Hidden/Done frames are eligible, unchanged targets cause no extra saves, and annotation data stays unchanged. Label actions must still exclude the source frame.
+- Press `V` on Done, In progress, and Not checked frames across multiple clips, including bbox, landmark, and seatbelt labels. Select **Marked frames** in Change status: all marks are eligible, even hidden ones and the current frame if marked. Marks should remain after saving; V/Clear selection removes them, and changing label/session clears them.
+- Test Change status on a frame with no annotations, Enter to apply, and a failed request followed by retry. During saving, tabs and inputs must be disabled. A session/label/mode change must stop queued saves; stale responses must not enter a new session.
+- Under the progress bar, combine **Show done**, **Show in progress**, and **Show not checked**. Check each status alone, multiple statuses, all three, and none. Counts above the filters must stay unchanged. Scroll to a part away from the current frame, then show/hide Done: that visible part must stay at the same screen position even when completed parts appear above it. Reload and verify the choices persist. Combine with part search and use `A` / `D` / `Space`: only matching frames should be visited.
+- Hover over each clip status button: it must show a source-frame count and exactly two destination options without saving. Try all six transitions on a mixed-status clip. Only source-status frames in the active-label clip should change, including hidden frames; annotations and other clips/labels must remain unchanged.
+- Test a fully Done clip: **Done** must be enabled so it can be reopened; the other source buttons must be disabled. Try keyboard Enter/Space/arrows/Esc, clicking outside, and scrolling with a menu open. The menu must not toggle the clip or trigger playback. Repeating a partially failed transition should save only remaining source frames.
 - Find **Done all** below a part's frame count in the left column. Scroll up/down inside a long part and resize the window: the checkbox and count should remain visible. Move into another part and verify its control takes over.
 - Tick Done all on a part you intend to complete. The count shows save progress, then all its clips/frames become Done. Untick it: all frames become In progress. Other parts, labels, and annotation boxes must stay unchanged. Check collapsed clips, a partially Done part (dash), and keyboard Space on the focused checkbox.
-- With **Show only unfinished** enabled, the action must still cover the complete current-label part. Completed parts disappear under that filter; disable it to see and untick the part again. If a request fails, the checkbox must reflect only successful saves and show an error; retry Done to save the remaining frames. Switching label/session during saving must stop new queued requests.
+- With **Show done** unchecked, the action must still cover the complete current-label part. Completed parts disappear; check **Show done** to see and untick the part again. If a request fails, the checkbox must reflect only successful saves and show an error; retry Done to save the remaining frames. Switching label/session during saving must stop new queued requests.
 - With auto_load_img running, Done all must advance its two-part cache only after the whole part's Done saves succeed. Test that opening/closing clips and scrolling during saves keep the control accessible.
 - Place a hand box against the bottom image edge. Drag its bottom-right handle horizontally while moving slightly in and out of the black margin: the width should keep following the pointer without freezing or jumping on re-entry. Release outside: the saved bottom edge should be clipped to the image.
 - Grab the outside half of a boundary handle. Repeat at all four image edges, while zoomed/panned, and with other bbox labels. Check that the box saves once on release, `Z` restores it for body/hand/eye, and losing window focus during a drag discards that unsaved drag. Viewer controls and empty-margin clicks must not start a bbox edit.
 - On body/hand/eye, press `C` in frame 2: all boxes should come from frame 1. Edit and save frame 3, then press C in frame 4: it should use the edited boxes. Leave frame 5 unchanged and press C in frame 6: it should use frame 5. Leave frame 7 empty and press C in frame 8: it should use frame 6.
-- Jump directly to a frame without viewing its predecessor; C must still find the nearest earlier frame with boxes. Check an explicitly deleted/empty predecessor and a Done predecessor hidden by only-todo. The source should always be the same label and session. With no earlier nonempty source, current boxes must remain untouched.
+- Jump directly to a frame without viewing its predecessor; C must still find the nearest earlier frame with boxes. Check an explicitly deleted/empty predecessor and a Done predecessor hidden by status filters. The source should always be the same label and session. With no earlier nonempty source, current boxes must remain untouched.
 - After C, press `Z` to restore the target. `Shift+C` should copy then advance once. While source data loads, switch frame/label/session or edit the current box: the pending copy must not overwrite that new context or edit. Check that Ctrl+C/Ctrl+V still use the explicit clipboard selection.
 - Load a large part with **auto_load_img**, wait for **Ready**, then press `Space` at 1x. Check that frames advance in order and the sidebar follows without repeated long pauses. Press `Space` again to pause; edit a box and check that the sidebar does not jump during repaint.
-- During playback, search for a different part, clear the search, change labels, and switch sessions. Navigation must use the new list and stop at its last frame. Mark Done with the only-todo filter enabled, then reopen a frame: the displayed rows and status must stay correct.
+- During playback, search for a different part, clear the search, change labels, and switch sessions. Navigation must use the new list and stop at its last frame. Mark Done with Show done unchecked, then reopen a frame: the displayed rows and status must stay correct.
 - Click the padlock to the right of the bottom timeline. It should close and turn gold. Click, double-click, or drag near either end of the timeline: the current frame must stay in place. Click the lock again and verify timeline clicks navigate normally.
 - While locked, use `A` / `D`, `Shift+D`, `Space`, and sidebar frame selection. These should still work. Reload DMS: the lock should keep your last choice. Resize the window and collapse the sidebars: the lock must remain beside the timeline without covering the frame counter.
 - For head, face, nose, mouth, hand, eye, body, cigarette, e-cigarette, phone, can, bottle, and mask: double-click the midpoint handle of a box's top edge, then drag. Repeat for bottom, left, and right. Only the chosen edge should change. Check while zoomed/panned and near the image boundary.
@@ -67,6 +74,8 @@ python tests/test_bbox_previous.py
 python tests/test_bbox_drag.py
 python tests/test_part_done.py
 python tests/test_bbox_adjust.py
+python tests/test_status_controls.py
+python tests/test_bulk_status.py
 ```
 
 The image-loading tests use delayed local responses, actual IndexedDB and Chromium image decoding. They cover request limits, cache hits, Stop/resume, part transitions, failed optimistic Done saves, scope changes, failed image retries, quota errors, and integration with the Organizer. When the saved local DMS source is available, the integration check uses its original `getFrame` and `show` implementations.
