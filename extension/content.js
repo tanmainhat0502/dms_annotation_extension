@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.6.34";
+  const VERSION = "1.6.35";
   const ROOT_ID = "nota-labeling-organizer-v1";
   const STYLE_ID = "nota-labeling-organizer-style-v1";
   const STORAGE_KEY = "nota-labeling-organizer-filter-v1";
@@ -121,6 +121,7 @@
     quickLastOperation: null,
     bboxEdgePatch: null,
     renderingSidebar: false,
+    sidebarRenderPosition: null,
     sidebarScope: null,
     regionScope: null,
     regionFrame: null,
@@ -1553,17 +1554,18 @@
     state.markedBadge = badge;
   }
 
-  function captureSidebarPosition() {
+  function captureSidebarPosition(allowHiddenCurrent = false) {
     if (!pageLabelingReady() || state.sidebarScope?.generation !== S.gen ||
         state.sidebarScope?.label !== S.labelSel) return null;
     const current = state.list.querySelector("li.cur");
-    if (!current || Number(current.dataset.g) !== S.shownG) return null;
+    const currentMatches = current && Number(current.dataset.g) === S.shownG;
+    if (!currentMatches && !allowHiddenCurrent) return null;
     const pane = state.pane;
     const bounds = pane.getBoundingClientRect();
-    const row = current.getBoundingClientRect();
+    const row = currentMatches ? current.getBoundingClientRect() : null;
     const contentTop = Math.max(bounds.top, state.toolbar?.getBoundingClientRect().bottom || bounds.top);
     let anchor = null;
-    if (!(row.height > 0 && row.bottom > contentTop && row.top < bounds.bottom)) {
+    if (!(row && row.height > 0 && row.bottom > contentTop && row.top < bounds.bottom)) {
       const candidates = [];
       const add = (element, type, key, priority) => {
         if (!element) return;
@@ -1597,7 +1599,7 @@
     return {
       pane, generation: S.gen, label: S.labelSel, frame: S.shownG,
       top: pane.scrollTop, left: pane.scrollLeft,
-      offset: row.height > 0 && row.bottom > contentTop && row.top < bounds.bottom
+      offset: row && row.height > 0 && row.bottom > contentTop && row.top < bounds.bottom
         ? row.top - bounds.top : null,
       anchor
     };
@@ -1621,10 +1623,10 @@
     if (!position || !pageLabelingReady() || position.pane !== state.pane ||
         position.generation !== S.gen || position.label !== S.labelSel || position.frame !== S.shownG) return;
     const current = state.list.querySelector("li.cur");
-    if (!current || Number(current.dataset.g) !== position.frame) return;
-    const row = current.getBoundingClientRect();
+    const row = current && Number(current.dataset.g) === position.frame
+      ? current.getBoundingClientRect() : null;
     state.pane.scrollLeft = position.left;
-    if (position.offset !== null && row.height > 0) {
+    if (position.offset !== null && row?.height > 0) {
       state.pane.scrollTop += row.top - state.pane.getBoundingClientRect().top - position.offset;
       return;
     }
@@ -1649,7 +1651,8 @@
       state.navigation = null;
       state.partIndex = null;
       if (state.renderingSidebar) return nativeRender.apply(this, args);
-      const position = captureSidebarPosition();
+      const position = state.sidebarRenderPosition || captureSidebarPosition();
+      state.sidebarRenderPosition = null;
       state.renderingSidebar = true;
       let result;
       try {
@@ -1751,6 +1754,9 @@
       label.append(input, `Show ${statusName(value).toLowerCase()}`);
       input.addEventListener("change", () => {
         state.statusFilters[value] = input.checked;
+        // A hidden current frame has no row to anchor. Capture the part/clip
+        // the user is actually viewing before rebuilding the filtered list.
+        state.sidebarRenderPosition = captureSidebarPosition(true);
         try { localStorage.setItem(STATUS_FILTER_KEY, JSON.stringify(state.statusFilters)); } catch (_) {}
         closeClipStatusMenu();
         if (typeof pause === "function") pause();

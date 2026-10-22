@@ -7,6 +7,11 @@
 - Make **auto_load_img** follow the filter: download only matching frames, wait for unknown counts (also loaded for preloaded parts hidden by part search), keep downloaded images when the filter changes, skip parts without matching frames, re-select the two parts when the filter changes, and treat a part as complete once its filtered frames are Done.
 - Add browser coverage for count loading order and concurrency, part search scope, read failures, navigation, edits, label scope, preloader integration, and a 12,000-frame list.
 
+## 1.6.35 - 2026-10-22
+
+- Keep the browsed sidebar part in place when Show done makes a hidden current frame visible again. Capture a filter-specific scroll anchor even when the current frame has no row in the filtered list.
+- Retain the v1.6.34 behavior for removing statuses, deliberate navigation, sticky clip headers, and clip collapse; add a regression for the hidden-current-frame case.
+
 ## 1.6.34 - 2026-10-22
 
 - Preserve the visible sidebar frame, clip, or part when Show done, Show in progress, or Show not checked inserts or removes content above the viewport. Avoid jumping to a different part when the current frame is off screen.
