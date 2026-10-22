@@ -1,10 +1,10 @@
-# Manual testing: 1.6.36
+# Manual testing: 1.6.37
 
 Use this checklist to verify cached playback, the timeline lock, bbox editing, sticky clip controls, and image preloading in your DMS environment.
 
 ## Install
 
-1. Extract `dist/NOTA_Labeling_Organizer_Extension_v1.6.36.zip`, or use this repository's `extension` folder.
+1. Extract `dist/NOTA_Labeling_Organizer_Extension_v1.6.37.zip`, or use this repository's `extension` folder.
 2. In `chrome://extensions`, disable the older Organizer version. Click **Load unpacked** and select the folder containing `manifest.json`.
 3. Reload the DMS tab. Open **Labeling**, choose a label, and open a frame.
 4. Find **auto_load_img** and **Stop** directly below the part search field.
@@ -28,6 +28,8 @@ Use this checklist to verify cached playback, the timeline lock, bbox editing, s
 - Jump directly to a frame without viewing its predecessor; C must still find the nearest earlier frame with boxes. Check an explicitly deleted/empty predecessor and a Done predecessor hidden by status filters. The source should always be the same label and session. With no earlier nonempty source, current boxes must remain untouched.
 - After C, press `Z` to restore the target. `Shift+C` should copy then advance once. While source data loads, switch frame/label/session or edit the current box: the pending copy must not overwrite that new context or edit. Check that Ctrl+C/Ctrl+V still use the explicit clipboard selection.
 - Load a large part with **auto_load_img**, wait for **Ready**, then press `Space` at 1x. Check that frames advance in order and the sidebar follows without repeated long pauses. Press `Space` again to pause; edit a box and check that the sidebar does not jump during repaint.
+- Compare `D` and `Space` on the same cached clip. Space should present roughly 10 frames/second at 1×, even where source timestamps repeat or have gaps. Try 0.5×, 2× and 3×, then change speed while playing. After a temporary rendering/decode delay, frames should resume evenly instead of rushing through several at once. Slow hardware or an uncached image can still delay an individual frame.
+- Pause while an image is loading, select another frame, and resume. The old image must not replace the new frame or stop the new playback run. Change label/session while loading and check the same. An image-load failure should pause with a retry message; Space should retry that frame. Review modes should retain their original timing.
 - During playback, search for a different part, clear the search, change labels, and switch sessions. Navigation must use the new list and stop at its last frame. Mark Done with Show done unchecked, then reopen a frame: the displayed rows and status must stay correct.
 - Click the padlock to the right of the bottom timeline. It should close and turn gold. Click, double-click, or drag near either end of the timeline: the current frame must stay in place. Click the lock again and verify timeline clicks navigate normally.
 - While locked, use `A` / `D`, `Shift+D`, `Space`, and sidebar frame selection. These should still work. Reload DMS: the lock should keep your last choice. Resize the window and collapse the sidebars: the lock must remain beside the timeline without covering the frame counter.
@@ -87,7 +89,7 @@ The edge tests exercise all 13 bbox labels and all four edges through mouse gest
 
 The timeline tests cover locked/unlocked mouse, touch and pen input; keyboard/sidebar navigation; playback; reload persistence; keyboard access to the lock; high-DPI resizing; hidden timelines; and unavailable local storage. When available, the saved DMS source supplies the native timeline click handler.
 
-The playback tests use 12,000 sidebar rows to verify that repeated navigation/lookahead and frame highlighting avoid full-list enumeration. They cover filter/list/label/session invalidation and only-todo rebuilds. Cached Space playback is also exercised with local image responses, asserting ordered display and no new image requests while the tested lookahead remains in the downloaded parts. Local saved viewer code supplies the original playback and image-cache functions when available. This is a controlled browser test, not a live-server FPS guarantee.
+The playback tests use 12,000 sidebar rows to verify that repeated navigation/lookahead and frame highlighting avoid full-list enumeration. They cover filter/list/label/session invalidation and only-todo rebuilds. Cached Space playback covers timestamp gaps/repeats and a 230 ms render stall, asserting spaced, ordered presentation and no new image requests while lookahead stays in downloaded parts. Additional checks cover next-image priority, the four-load limit, pause/resume with pending images, scope changes, speed controls, filtered-list boundaries, and native review playback. Local saved viewer code supplies the original playback and image-cache functions when available. This is a controlled browser test, not a live-server FPS guarantee.
 
 The C-shortcut tests cover sequential and out-of-order navigation, saved/auto-label sources, hidden Done frames, explicit deletions, nearest nonempty lookup, all-box replacement, undo, Shift+C, clipboard isolation, and delayed-load cancellation/error cases. All data is local to the browser fixture.
 

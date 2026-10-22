@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.6.36";
+  const VERSION = "1.6.37";
   const ROOT_ID = "nota-labeling-organizer-v1";
   const STYLE_ID = "nota-labeling-organizer-style-v1";
   const STORAGE_KEY = "nota-labeling-organizer-filter-v1";
@@ -102,6 +102,7 @@
     sidebarRenderingInstalled: false,
     statusRenderingInstalled: false,
     organizedPlaybackInstalled: false,
+    organizedPlaybackLoopInstalled: false,
     labelVisibilityInstalled: false,
     eyePanelHintInstalled: false,
     eyeGroupDraggingInstalled: false,
@@ -905,20 +906,96 @@
   }
 
   function ensureOrganizedPlayback() {
-    if (state.organizedPlaybackInstalled || typeof playNext !== "function") return;
-    const nativePlayNext = playNext;
-    playNext = function (g, step = 1) {
-      if (!pageLabelingReady()) return nativePlayNext.apply(this, arguments);
-      if (state.statusFilters && !S.lseq?.length) return g;
-      // The player asks for this once per displayed frame and repeatedly for
-      // lookahead. Index the list once, not once per prefetch candidate.
-      const cursor = organizedNavigationTarget(g, Math.max(1, Math.abs(Number(step) || 1)));
-      if (!cursor) return nativePlayNext.apply(this, arguments);
-      if (cursor.index < 0) return g;
-      const next = Number(cursor.rows[cursor.index].dataset.g);
-      return Number.isInteger(next) ? next : nativePlayNext.apply(this, arguments);
+    if (!state.organizedPlaybackInstalled && typeof playNext === "function") {
+      const nativePlayNext = playNext;
+      playNext = function (g, step = 1) {
+        if (!pageLabelingReady()) return nativePlayNext.apply(this, arguments);
+        if (state.statusFilters && !S.lseq?.length) return g;
+        // The player asks for this once per displayed frame and repeatedly for
+        // lookahead. Index the list once, not once per prefetch candidate.
+        const cursor = organizedNavigationTarget(g, Math.max(1, Math.abs(Number(step) || 1)));
+        if (!cursor) return nativePlayNext.apply(this, arguments);
+        if (cursor.index < 0) return g;
+        const next = Number(cursor.rows[cursor.index].dataset.g);
+        return Number.isInteger(next) ? next : nativePlayNext.apply(this, arguments);
+      };
+      state.organizedPlaybackInstalled = true;
+    }
+    if (state.organizedPlaybackLoopInstalled || typeof loop !== "function" ||
+        typeof getFrame !== "function" || typeof fkey !== "function" || typeof SPEEDS === "undefined") return;
+    const nativeLoop = loop;
+    loop = function (token) {
+      if (!pageLabelingReady() || !organizedNavigationIndex()) return nativeLoop.apply(this, arguments);
+      return runOrganizedPlayback(token);
     };
-    state.organizedPlaybackInstalled = true;
+    state.organizedPlaybackLoopInstalled = true;
+  }
+
+  async function runOrganizedPlayback(token) {
+    const session = S.sess, generation = S.gen, label = S.labelSel, width = S.w, quality = S.q;
+    const alive = () => S.playing && S.tok === token;
+    const sameScope = () => S.mode === "label" && S.sess === session && S.gen === generation &&
+      S.labelSel === label && S.w === width && S.q === quality;
+    let presentedAt = performance.now();
+    try {
+      while (alive() && sameScope()) {
+        const navigation = organizedNavigationIndex();
+        if (!navigation) return;
+        const from = S.g, speedIndex = S.speedI;
+        const speed = Number(SPEEDS[speedIndex]) || 1;
+        const step = speed <= 2 ? 1 : Math.round(speed / 2);
+        const next = playNext(from, step);
+        if (next === from) return;
+        const stillCurrent = () => alive() && sameScope() && S.g === from && S.speedI === speedIndex &&
+          organizedNavigationIndex() === navigation;
+        let bitmap;
+        try {
+          // Request the displayed frame first, before warming three successors.
+          // Reuse the viewer cache / two-part preloader; do not fill all six
+          // native request slots with later images ahead of the needed image.
+          const requested = getFrame(next);
+          for (let offset = 0, g = next; offset < 3 && S.inflight.size < 4; offset++) {
+            const following = playNext(g, step);
+            if (following === g) break;
+            g = following;
+            if (!S.frames.has(fkey(g))) getFrame(g).catch(() => {});
+          }
+          bitmap = await requested;
+        } catch (_) {
+          if (stillCurrent()) {
+            notify("Unable to load the next image. Press Space to retry.");
+            return;
+          }
+          continue;
+        }
+        if (!stillCurrent()) continue;
+        if (!bitmap) return;
+        // Label rows are selected samples, not a continuous source video.
+        // Present ten rows/second at 1x regardless of timestamp gaps/repeats.
+        // Keep the native speed/step choices, and give each image its own
+        // browser render opportunity. After a stall, start from the actual
+        // presentation time instead of painting several overdue frames at once.
+        const due = presentedAt + 100 * step / speed;
+        const time = await new Promise((resolve) => {
+          const tick = (now) => {
+            if (!stillCurrent()) { resolve(null); return; }
+            if (now + 0.5 < due) requestAnimationFrame(tick);
+            else resolve(now);
+          };
+          requestAnimationFrame(tick);
+        });
+        if (time === null) continue;
+        presentedAt = time;
+        S.g = next;
+        S.shownG = next;
+        S.bmp = bitmap;
+        paint();
+        drawBar();
+      }
+    } finally {
+      // An older pending image must never pause a newer playback run.
+      if (alive()) pause();
+    }
   }
 
   function eyeLandmarkActive() {

@@ -71,7 +71,8 @@ function nextG(g,dir,n=1){return Math.max(0,Math.min(S.G-1,g+dir*n));}
 function playNext(g,step=1){return nextG(g,1,step);}
 function paint(){
   if(S.bmp)document.querySelector('#view').getContext('2d').drawImage(S.bmp,0,0);
-  rvMarkLab();window.painted.push({g:S.shownG,t:performance.now()});
+  if(S.mode==='label' || S.mode==='review2')rvMarkLab();
+  window.painted.push({g:S.shownG,t:performance.now()});
   if(S.shownG===window.pauseAt)pause();
 }
 document.addEventListener('keydown',e=>{
@@ -86,7 +87,9 @@ def fixture(count):
     group=count//4
     html=SIDEBAR_HTML.replace('G:600',f'G:{count}').replace('n:600',f'n:{count}')
     html=html.replace('g/150',f'g/{group}').replace('g%150',f'g%{group}')
-    return html.replace('</body>', '<div id="spin" hidden></div><script>'+'\n'.join([SETUP,CACHE,PLAYBACK,MARK])+'\n</script></body>')
+    tracking='''window.nativeLoopCalls=0;const originalLoop=loop;
+      loop=function(...args){window.nativeLoopCalls++;return originalLoop(...args);};'''
+    return html.replace('</body>', '<div id="spin" hidden></div><script>'+'\n'.join([SETUP,CACHE,PLAYBACK,MARK,tracking])+'\n</script></body>')
 
 
 def settle(page):
@@ -179,7 +182,11 @@ def test_cached_space(browser):
     page.wait_for_function("document.querySelector('.nl-load-count').textContent==='Ready 16 / 16 images'")
     assert page.evaluate('S.frames.size')==0
     page.evaluate('show(0)')
-    page.evaluate('window.painted=[];window.pauseAt=6')
+    # Organized/filtered rows need not have evenly spaced source timestamps.
+    # The native wall-clock loop pauses at gaps, then paints duplicate timestamps
+    # together, even though every image is already downloaded.
+    page.evaluate('''window.painted=[];window.pauseAt=6;
+      S.ts.set([0,100,600,600,700,1000,1100]);''')
     page.locator('#start_auto_load').evaluate('el=>el.blur()')
     before=len(requests)
     page.keyboard.press('Space')
@@ -188,9 +195,151 @@ def test_cached_space(browser):
     assert page.evaluate('window.painted.map(p=>p.g)')==[1,2,3,4,5,6]
     assert page.locator('#labList li.cur').get_attribute('data-g')=='6'
     assert page.evaluate('S.frames.size')<=16
+    intervals=page.evaluate('painted.slice(1).map((p,i)=>p.t-painted[i].t)')
+    assert min(intervals)>70 and max(intervals)<250,intervals
     assert not errors,errors
     page.close()
-    print('PASS: native Space playback renders each cached frame in order, no additional image requests; bounded lookahead and pause')
+    print(f'PASS: cached Space playback stays evenly paced across timestamp gaps/repeats ({[round(t) for t in intervals]} ms); no additional image requests')
+
+
+def test_playback_stall(browser):
+    page,errors,requests=open_page(browser,64)
+    page.evaluate('''async()=>{
+      await Promise.all(Array.from({length:20},(_,g)=>getFrame(g)));
+      await show(0);window.painted=[];window.pauseAt=7;
+      const originalPaint=paint;
+      paint=function(){
+        originalPaint();
+        if(S.shownG===2){const end=performance.now()+230;while(performance.now()<end){}}
+      };
+    }''')
+    before=len(requests)
+    page.keyboard.press('Space')
+    page.wait_for_function('S.shownG===7 && !S.playing')
+    frames=page.evaluate('painted')
+    assert [p['g'] for p in frames]==list(range(1,8)),frames
+    intervals=[b['t']-a['t'] for a,b in zip(frames,frames[1:])]
+    assert min(intervals)>70,intervals
+    assert len(requests)==before,(before,len(requests))
+    assert not errors,errors
+    page.close()
+    print(f'PASS: a 230 ms render stall does not cause catch-up bursts ({[round(t) for t in intervals]} ms)')
+
+
+def test_pending_playback(browser):
+    page,errors,requests=open_page(browser,64)
+    page.evaluate('''async()=>{
+      await show(0);window.painted=[];window.frameRequests=[];window.maxInflight=0;
+      const gate=new Promise(r=>window.releaseImage=r),nativeGet=getFrame;
+      getFrame=function(g){
+        frameRequests.push(g);
+        const pending=nativeGet(g);
+        maxInflight=Math.max(maxInflight,S.inflight.size);
+        return g===1 ? pending.then(b=>gate.then(()=>b)) : pending;
+      };
+    }''')
+    page.keyboard.press('Space')
+    page.wait_for_function('frameRequests.length>=4')
+    assert page.evaluate('frameRequests.slice(0,4)')==[1,2,3,4]
+    assert page.evaluate('maxInflight')<=4
+    # Pause a pending decode; start another run before the old result arrives.
+    page.keyboard.press('Space')
+    page.evaluate('show(8)')
+    page.evaluate('window.painted=[];window.pauseAt=12')
+    page.keyboard.press('Space')
+    page.evaluate('releaseImage()')
+    page.wait_for_function('S.shownG===12 && !S.playing')
+    assert page.evaluate('painted.map(p=>p.g)')==[9,10,11,12]
+    assert page.evaluate('nativeLoopCalls')==0
+
+    # Scope switches invalidate images already being decoded. Returning to
+    # review mode still uses the original player rather than the label cadence.
+    page.evaluate('''async()=>{
+      await show(0);window.painted=[];
+      const gate=new Promise(r=>window.releaseScopeImage=r),nativeGet=getFrame;
+      getFrame=g=>g===1 ? nativeGet(g).then(b=>gate.then(()=>b)) : nativeGet(g);
+    }''')
+    page.keyboard.press('Space')
+    page.evaluate("S.labelSel='hand';S.gen++;releaseScopeImage()")
+    page.wait_for_function('!S.playing')
+    assert page.evaluate('painted.length')==0
+    page.evaluate("S.mode='review';window.pauseAt=2")
+    page.keyboard.press('Space')
+    page.wait_for_function('S.shownG===2 && !S.playing')
+    assert page.evaluate('nativeLoopCalls')==1
+    assert not errors,errors
+    page.close()
+    print('PASS: next image requested first, at most four foreground loads; pause/resume and scope changes reject stale images; review playback stays native')
+
+
+def test_playback_speed_and_filters(browser):
+    page,errors,requests=open_page(browser,64)
+    page.evaluate('''async()=>{
+      await Promise.all(Array.from({length:20},(_,g)=>getFrame(g)));
+      S.lseq=Int32Array.from([0,4,8,12]);renderLabList();await show(0);
+      window.painted=[];window.pauseAt=-1;S.speedI=1;
+    }''')
+    settle(page)
+    page.keyboard.press('Space')
+    page.wait_for_function('S.shownG===4')
+    page.evaluate('S.speedI=3;resyncAt(S.g)')
+    page.wait_for_function('!S.playing')
+    frames=page.evaluate('painted')
+    assert [p['g'] for p in frames]==[4,8,12],frames
+    assert 25<frames[-1]['t']-frames[-2]['t']<180,frames
+    # At high speed retain native frame stepping (3x advances two rows).
+    page.evaluate('''async()=>{
+      buildSeq();renderLabList();await show(0);window.painted=[];window.pauseAt=8;S.speedI=4;
+    }''')
+    settle(page)
+    page.keyboard.press('Space')
+    page.wait_for_function('S.shownG===8 && !S.playing')
+    assert page.evaluate('painted.map(p=>p.g)')==[2,4,6,8]
+    assert not errors,errors
+    page.close()
+    print('PASS: sparse filtered lists play evenly and stop at their end; speed changes and high-speed stepping work')
+
+
+def test_playback_retarget_and_retry(browser):
+    page,errors,requests=open_page(browser,32)
+    page.evaluate('''async()=>{
+      await show(0);window.painted=[];window.pauseAt=8;window.waiting=false;
+      const nativeGet=getFrame,gate=new Promise(r=>window.releaseImage=r);
+      getFrame=function(g){
+        const pending=nativeGet(g);
+        if(g!==1)return pending;
+        window.waiting=true;return pending.then(b=>gate.then(()=>b));
+      };
+    }''')
+    page.keyboard.press('Space')
+    page.wait_for_function('waiting')
+    page.evaluate('S.lseq=Int32Array.from([0,4,8]);renderLabList();releaseImage()')
+    page.wait_for_function('S.shownG===8 && !S.playing')
+    assert page.evaluate('painted.map(p=>p.g)')==[4,8]
+    assert not errors,errors
+    page.close()
+
+    page,errors,requests=open_page(browser,32)
+    failures=[]
+
+    def fail_once(route):
+        if '&i=1&' in route.request.url and not failures:
+            failures.append(route.request.url)
+            route.fulfill(status=503,body='Local test: image unavailable')
+        else:route.fallback()
+
+    page.route('**/api/frame?*',fail_once)
+    page.evaluate('show(0)')
+    page.evaluate('window.painted=[];window.pauseAt=2')
+    page.keyboard.press('Space')
+    page.wait_for_function('!S.playing && window.lastMessage?.includes("retry")')
+    assert page.evaluate('[S.g,S.shownG,painted.length]')==[0,0,0]
+    page.keyboard.press('Space')
+    page.wait_for_function('S.shownG===2 && !S.playing')
+    assert page.evaluate('painted.map(p=>p.g)')==[1,2]
+    assert len(failures)==1 and not errors,(failures,errors)
+    page.close()
+    print('PASS: filtering during a pending image uses the new list; a failed image pauses and Space retries without skipping')
 
 
 def main():
@@ -199,6 +348,10 @@ def main():
         try:
             test_large_list(browser)
             test_cached_space(browser)
+            test_playback_stall(browser)
+            test_pending_playback(browser)
+            test_playback_speed_and_filters(browser)
+            test_playback_retarget_and_retry(browser)
         finally:browser.close()
 
 

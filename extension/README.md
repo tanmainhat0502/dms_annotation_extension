@@ -1,6 +1,6 @@
 # NOTA Labeling Organizer — usage guide
 
-**Version 1.6.36 · English**
+**Version 1.6.37 · English**
 
 For installation screenshots and the complete shortcut tables, see the [GitHub README](https://github.com/tanmainhat0502/dms_annotation_extension#readme).
 
@@ -42,6 +42,8 @@ When all frames in the first part are saved as Done, the extension releases that
 **Stop** cancels background requests and keeps completed images. Click **auto_load_img** again to fill the current part and the next unfinished part, keeping any already loaded images in that pair. This also retries failed images. Opening a part outside the pair while the loader is running starts a new pair there.
 
 Images are stored compressed in local browser storage; background loading does not decode thousands of bitmaps into RAM. Normal viewing uses those stored images, and `A` / `D` prepare up to three nearby frames. Some decoding or annotation loading delay may remain.
+
+In Labeling, `Space` plays the selected list at an even **10 frames/second at 1×**. The speed control still applies, including the viewer's frame stepping above 2×. Source timestamp gaps/repeats do not interrupt the cadence. The next image is requested first, with up to three following images prepared in advance and at most four outstanding viewer image loads started by this loop. Slow decoding/rendering delays playback instead of triggering a burst of overdue frames. Pause/resume and changing labels or sessions discard stale playback results. Review modes keep their original player.
 
 The three-request background limit applies per tab; there is no fixed images-per-second limit. Speed and server load depend on the connection, server capacity, and number of users or tabs loading images.
 

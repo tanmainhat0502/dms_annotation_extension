@@ -1,11 +1,15 @@
 # Changelog
 
-## Unreleased
+## 1.6.37 - 2026-10-22
 
 - Restore the **BBox** exact-count filter below part search for bbox labels (`2,3,4`, **All**). Counts include saved edits and refresh after edits and Ctrl+B; `A` / `D` and `Space` follow the filtered frames, and a frame hidden after an edit resumes at its nearest visible neighbor.
 - Reduce filter load: read auto-labels only while a count is entered, at most two segments at a time, current frame first, limited to parts matching the part search, once per session and label. Cache per-frame counts, throttle list refreshes, and skip per-row work while the filter is off.
 - Make **auto_load_img** follow the filter: download only matching frames, wait for unknown counts (also loaded for preloaded parts hidden by part search), keep downloaded images when the filter changes, skip parts without matching frames, re-select the two parts when the filter changes, and treat a part as complete once its filtered frames are Done.
 - Add browser coverage for count loading order and concurrency, part search scope, read failures, navigation, edits, label scope, preloader integration, and a 12,000-frame list.
+- Pace Labeling Space playback by the selected frame list at 10 frames/second at 1×, adjusted by the existing speed/step controls. Timestamp gaps/repeats no longer cause pauses followed by rapid catch-up frames.
+- Present through the browser animation clock and resume from the actual presentation time after a stall. Request the next image before warming three successors, with at most four outstanding viewer loads; reuse the existing two-part cache.
+- Reject stale playback results after pause/resume, navigation, filters, label/session or image-setting changes. Stop with a retry message if the next image fails; keep review-mode playback native.
+- Add browser regressions for cached timestamp gaps/repeats, a 230 ms rendering stall, request priority/limits, pending-image cancellation, speed changes, filtered-list boundaries, and native fallback.
 
 ## 1.6.36 - 2026-10-22
 
