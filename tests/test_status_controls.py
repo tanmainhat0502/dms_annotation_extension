@@ -170,10 +170,26 @@ async def test_filter_scroll_anchor(browser):
     await settle(page)
     restored = (await page.locator(part).bounding_box())['y']
     assert abs(restored - before) <= 1, f'Visible part jumped after hiding Done: {before} -> {restored}'
+    # DMS may keep showing a Done image even while its sidebar row is hidden.
+    # Showing Done again must retain the browsed part instead of jumping to it.
+    await page.evaluate("""() => {
+      S.g=S.shownG=50;
+      document.querySelectorAll('#labList li.cur').forEach(item=>item.classList.remove('cur'));
+    }""")
+    before_hidden_current = (await page.locator(part).bounding_box())['y']
+    await page.locator(FILTER.format('done')).evaluate("""input=>{
+      input.checked=true;input.dispatchEvent(new Event('change',{bubbles:true}));
+    }""")
+    await settle(page)
+    after_hidden_current = (await page.locator(part).bounding_box())['y']
+    assert abs(after_hidden_current - before_hidden_current) <= 1, (
+        f'Showing the hidden current frame moved the browsed part: '
+        f'{before_hidden_current} -> {after_hidden_current}')
+    assert await page.evaluate('S.shownG') == 50
     assert not server.posts
     assert not errors, errors
     await page.close()
-    print('PASS: status filters preserve the visible part while groups are inserted or removed above it')
+    print('PASS: status filters preserve the visible part while groups are inserted/removed or the hidden current frame reappears')
 
 
 async def test_transitions(browser):

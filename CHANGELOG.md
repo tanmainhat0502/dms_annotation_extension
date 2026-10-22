@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.35 - 2026-10-22
+
+- Keep the browsed sidebar part in place when Show done makes a hidden current frame visible again. Capture a filter-specific scroll anchor even when the current frame has no row in the filtered list.
+- Retain the v1.6.34 behavior for removing statuses, deliberate navigation, sticky clip headers, and clip collapse; add a regression for the hidden-current-frame case.
+
 ## 1.6.34 - 2026-10-22
 
 - Preserve the visible sidebar frame, clip, or part when Show done, Show in progress, or Show not checked inserts or removes content above the viewport. Avoid jumping to a different part when the current frame is off screen.
