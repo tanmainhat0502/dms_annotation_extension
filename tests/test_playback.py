@@ -342,6 +342,41 @@ def test_playback_retarget_and_retry(browser):
     print('PASS: filtering during a pending image uses the new list; a failed image pauses and Space retries without skipping')
 
 
+def test_cached_bbox_filter_playback(browser):
+    page,errors,requests=open_page(browser,64)
+    page.evaluate('''() => {
+      for(let g=0;g<S.G;g++)S.ledits[rvKey(g)]={body:
+        Array.from({length:g%4},(_,i)=>({box:[i,i,i+5,i+5]}))};
+    }''')
+    page.locator('#nl-bbox-counts').fill('2')
+    page.wait_for_function("document.querySelector('.nl-bbox-status').textContent==='16/64 frames'")
+    page.add_script_tag(content=PRELOAD)
+    page.locator('#start_auto_load').click()
+    page.wait_for_function("document.querySelector('.nl-load-count').textContent==='Ready 8 / 8 images'")
+    before=len(requests)
+    page.evaluate('window.painted=[];window.pauseAt=6')
+    page.locator('#start_auto_load').evaluate('el=>el.blur()')
+    # Current frame 0 is hidden by the new BBox filter. Space must resume at
+    # the nearest matching row and use its cached lookahead, not the old list.
+    page.keyboard.press('Space')
+    page.wait_for_function('S.shownG===6 && !S.playing && S.inflight.size===0')
+    assert page.evaluate('painted.map(p=>p.g)')==[2,6]
+    assert len(requests)==before,(before,len(requests))
+    assert page.evaluate('painted[1].t-painted[0].t')>70
+    # Reconfigure both the filter and two-part preloader, then resume from a
+    # frame hidden by the new count. Forward playback must not jump backward.
+    page.locator('#nl-bbox-counts').fill('1')
+    page.wait_for_function("document.querySelector('.nl-load-count').textContent==='Ready 8 / 8 images' && S.inflight.size===0")
+    page.locator('#nl-bbox-counts').evaluate('el=>el.blur()')
+    page.evaluate('window.painted=[];window.pauseAt=13')
+    page.keyboard.press('Space')
+    page.wait_for_function('S.shownG===13 && !S.playing')
+    assert page.evaluate('painted.map(p=>p.g)')==[9,13]
+    assert not errors,errors
+    page.close()
+    print('PASS: BBox-filtered cached Space playback follows matching rows, including after changing counts from a hidden frame')
+
+
 def main():
     with sync_playwright() as pw:
         browser=pw.chromium.launch(headless=True)
@@ -352,6 +387,7 @@ def main():
             test_pending_playback(browser)
             test_playback_speed_and_filters(browser)
             test_playback_retarget_and_retry(browser)
+            test_cached_bbox_filter_playback(browser)
         finally:browser.close()
 
 

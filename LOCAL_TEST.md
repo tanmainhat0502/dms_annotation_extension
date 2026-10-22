@@ -11,6 +11,7 @@ Use this checklist to verify cached playback, the timeline lock, bbox editing, s
 
 ## Review checklist
 
+- In **BBox**, enter `2,3,4`, then try `0` and **All**. Combine the box-count filter with part search and status filters. `A` / `D` and `Space` must visit only matching frames, including when the current frame becomes hidden after an edit or filter change. With auto_load_img Ready, play with Space and check the even cadence. Change the BBox filter and verify the image counter/preloaded parts follow the new selection.
 - Open `Ctrl+B`: verify **Label actions** and **Change status** tabs. Select either tab, close with Esc, reopen, and reload DMS: the same tab must remain selected. Switching tabs must not discard a pending box-edge/mask operation. Return to Label actions before testing copy/delete/adjust below.
 - In Change status, test Not checked, In progress, and Done with previous/next frame counts, `end`, and a count larger than the clip. The count must include the current frame, then continue in the selected direction. Only the active label in that clip should change. Hidden/Done frames are eligible, unchanged targets cause no extra saves, and annotation data stays unchanged. Label actions must still exclude the source frame.
 - Press `V` on Done, In progress, and Not checked frames across multiple clips, including bbox, landmark, and seatbelt labels. Select **Marked frames** in Change status: all marks are eligible, even hidden ones and the current frame if marked. Marks should remain after saving; V/Clear selection removes them, and changing label/session clears them.
@@ -72,6 +73,7 @@ python tests/test_bbox_boundary.py
 python tests/test_bbox_edges.py
 python tests/test_timeline_lock.py
 python tests/test_playback.py
+python tests/test_bbox_filter.py
 python tests/test_bbox_previous.py
 python tests/test_bbox_drag.py
 python tests/test_part_done.py

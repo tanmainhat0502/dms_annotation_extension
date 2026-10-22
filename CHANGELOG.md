@@ -9,7 +9,7 @@
 - Pace Labeling Space playback by the selected frame list at 10 frames/second at 1×, adjusted by the existing speed/step controls. Timestamp gaps/repeats no longer cause pauses followed by rapid catch-up frames.
 - Present through the browser animation clock and resume from the actual presentation time after a stall. Request the next image before warming three successors, with at most four outstanding viewer loads; reuse the existing two-part cache.
 - Reject stale playback results after pause/resume, navigation, filters, label/session or image-setting changes. Stop with a retry message if the next image fails; keep review-mode playback native.
-- Add browser regressions for cached timestamp gaps/repeats, a 230 ms rendering stall, request priority/limits, pending-image cancellation, speed changes, filtered-list boundaries, and native fallback.
+- Add browser regressions for cached timestamp gaps/repeats, a 230 ms rendering stall, request priority/limits, pending-image cancellation, speed changes, filtered-list boundaries, native fallback, and cached Space playback with BBox filters.
 
 ## 1.6.36 - 2026-10-22
 
