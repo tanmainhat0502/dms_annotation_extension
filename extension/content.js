@@ -85,6 +85,9 @@
     bboxMarkedFrames: new Set(),
     bboxMarkedScope: null,
     markedBadge: null,
+    markedRows: new Map(),
+    markedRowsMode: null,
+    renderedRows: new WeakMap(),
     manualMode: null,
     lastPatch: null,
     polygonDrawingInstalled: false,
@@ -1566,6 +1569,49 @@
     state.markedBadge.style.top = `${Math.max(8, rect.top + 12)}px`;
   }
 
+  function setFrameMarker(li, marked, bboxMode) {
+    li.classList.toggle("nl-marked-frame", marked);
+    const existing = li.querySelector(":scope > .nl-frame-mark");
+    if (!marked) {
+      existing?.remove();
+      return;
+    }
+    if (existing) return;
+    const marker = document.createElement("span");
+    marker.className = "nl-frame-mark";
+    marker.textContent = bboxMode ? "◆ V" : "✓ V";
+    marker.title = "Frame marked with V";
+    const name = li.querySelector(".name");
+    if (name) name.before(marker); else li.prepend(marker);
+  }
+
+  // state.markedRows (frame g -> marked li) lets V toggles touch only the rows
+  // whose selection changed instead of scanning every sidebar row.
+  function syncFrameMarkers(selectedFrames, bboxMode) {
+    const rows = state.markedRows;
+    if (state.markedRowsMode !== bboxMode) {
+      for (const li of rows.values()) setFrameMarker(li, false);
+      rows.clear();
+      state.markedRowsMode = bboxMode;
+    }
+    for (const [g, li] of rows) {
+      if (selectedFrames.has(g) && li.isConnected) continue;
+      setFrameMarker(li, false);
+      rows.delete(g);
+    }
+    let navigation;
+    for (const g of selectedFrames) {
+      if (rows.has(g)) continue;
+      navigation ??= organizedNavigationIndex() || false;
+      const li = navigation
+        ? navigation.all.rows[navigation.all.positions.get(g)]
+        : state.list?.querySelector(`li[data-g="${g}"]`);
+      if (!li) continue;
+      setFrameMarker(li, true, bboxMode);
+      rows.set(g, li);
+    }
+  }
+
   function updateMarkedUI() {
     const bboxMode = quickBboxReady();
     const ready = bboxMode ? syncBboxMarkedScope() : syncMarkedScope();
@@ -1574,19 +1620,7 @@
       return;
     }
     const selectedFrames = bboxMode ? state.bboxMarkedFrames : state.markedFrames;
-    for (const li of state.list?.querySelectorAll("li[data-g]") || []) {
-      const selected = selectedFrames.has(Number(li.dataset.g));
-      li.classList.toggle("nl-marked-frame", selected);
-      let marker = li.querySelector(":scope > .nl-frame-mark");
-      if (selected && !marker) {
-        marker = document.createElement("span");
-        marker.className = "nl-frame-mark";
-        marker.textContent = bboxMode ? "◆ V" : "✓ V";
-        marker.title = "Frame marked with V";
-        const name = li.querySelector(".name");
-        if (name) name.before(marker); else li.prepend(marker);
-      } else if (!selected) marker?.remove();
-    }
+    syncFrameMarkers(selectedFrames, bboxMode);
     if (!state.markedBadge) return;
     const count = selectedFrames.size;
     state.markedBadge.hidden = false;
@@ -1930,31 +1964,47 @@
     refreshClipStatusControls(details);
   }
 
-  function refreshVisibleFrameStates() {
-    for (const li of state.list?.querySelectorAll("li[data-g]") || []) {
-      const g = Number(li.dataset.g);
-      const value = frameState(g);
-      let badge = li.querySelector(":scope > .fs");
-      if (!badge) {
-        badge = document.createElement("span");
-        li.prepend(badge);
-      }
-      const className = `fs ${value}`;
-      if (badge.className !== className) badge.className = className;
-      const title = statusName(value);
-      if (badge.title !== title) badge.title = title;
-      const icon = statusIcon(value);
-      if (badge.textContent !== icon) badge.textContent = icon;
+  // Returns true when the row was repainted. state.renderedRows (li -> {value, edited})
+  // skips rows already showing the current fsGet/ledits state; rows rebuilt by
+  // the native renderer are cache misses and get repainted once.
+  function refreshFrameStatus(li, g) {
+    const value = frameState(g);
+    const edited = Boolean(typeof S !== "undefined" && S.ledits?.[rvKey(g)]);
+    const rendered = state.renderedRows.get(li);
+    if (rendered?.value === value && rendered.edited === edited) return false;
+    state.renderedRows.set(li, { value, edited });
 
-      const time = li.querySelector(".tm");
-      if (time) {
-        const edited = Boolean(typeof S !== "undefined" && S.ledits?.[rvKey(g)]);
-        const base = time.textContent.replace(/\s*✎\s*$/, "");
-        const next = edited ? `${base} ✎` : base;
-        if (time.textContent !== next) time.textContent = next;
-      }
+    let badge = li.querySelector(":scope > .fs");
+    if (!badge) {
+      badge = document.createElement("span");
+      li.prepend(badge);
     }
-    for (const details of state.list?.querySelectorAll(".nl-clip") || []) refreshClipSummary(details);
+    const className = `fs ${value}`;
+    if (badge.className !== className) badge.className = className;
+    const title = statusName(value);
+    if (badge.title !== title) badge.title = title;
+    const icon = statusIcon(value);
+    if (badge.textContent !== icon) badge.textContent = icon;
+
+    const time = li.querySelector(".tm");
+    if (time) {
+      const base = time.textContent.replace(/\s*✎\s*$/, "");
+      const next = edited ? `${base} ✎` : base;
+      if (time.textContent !== next) time.textContent = next;
+    }
+    return true;
+  }
+
+  function refreshVisibleFrameStates() {
+    const changedClips = new Set();
+    const refresh = (li, g) => {
+      if (refreshFrameStatus(li, g)) changedClips.add(li.closest(".nl-clip"));
+    };
+    const all = organizedNavigationIndex()?.all;
+    if (all) for (const [g, index] of all.positions) refresh(all.rows[index], g);
+    else for (const li of state.list?.querySelectorAll("li[data-g]") || []) refresh(li, Number(li.dataset.g));
+    changedClips.delete(null);
+    for (const details of changedClips) refreshClipSummary(details);
     refreshPartStatusControls();
   }
 
@@ -4731,11 +4781,14 @@
 
       const result = await runQueue(targets, async (g) => {
         const targetMask = await getFrameMask(g, context.generation);
+        const value = operation === "subtract" ? 0 : 1;
+        let changed = false;
         for (let index = 0; index < targetMask.length; index += 1) {
-          if (!sourceMask[index]) continue;
-          targetMask[index] = operation === "subtract" ? 0 : 1;
+          if (!sourceMask[index] || targetMask[index] === value) continue;
+          targetMask[index] = value;
+          changed = true;
         }
-        await saveFrameMask(g, targetMask, context.generation);
+        if (changed) await saveFrameMask(g, targetMask, context.generation);
       }, (done, total) => {
         preview.classList.remove("err");
         preview.textContent = `Saving ${done}/${total} frames…`;
@@ -5390,6 +5443,7 @@
     state.bboxActive = false;
     state.bboxHiddenApplied = false;
     cancelBboxLoads();
+    state.markedRows.clear();
     state.applying = true;
     try {
       for (const row of state.list.querySelectorAll(":scope > .grp.nl-organized")) {

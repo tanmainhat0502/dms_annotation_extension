@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Speed up status changes on long sidebars: repaint only rows whose status or edit mark changed and refresh only their clips (about 52 ms to 5 ms per change at 12,000 frames). V markers update only the toggled frames instead of every row.
+- Seatbelt Ctrl+B mask copy skips target frames whose mask would not change, so they are not re-saved or switched to In progress.
+
 ## 1.6.37 - 2026-10-22
 
 - Restore the **BBox** exact-count filter below part search for bbox labels (`2,3,4`, **All**). Counts include saved edits and refresh after edits and Ctrl+B; `A` / `D` and `Space` follow the filtered frames, and a frame hidden after an edit resumes at its nearest visible neighbor.
