@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.6.30";
+  const VERSION = "1.6.34";
   const ROOT_ID = "nota-labeling-organizer-v1";
   const STYLE_ID = "nota-labeling-organizer-style-v1";
   const STORAGE_KEY = "nota-labeling-organizer-filter-v1";
@@ -9,6 +9,9 @@
   const BBOX_FILTER_API = "__notaBboxFilterV1";
   const BBOX_COUNT_PARALLEL = 2;
   const BBOX_REFRESH_MS = 200;
+  const STATUS_FILTER_KEY = "nota-labeling-organizer-status-filter-v1";
+  const BULK_TAB_KEY = "nota-labeling-organizer-bulk-tab-v1";
+  const FRAME_STATES = ["done", "wip", "todo"];
   const TIMELINE_LOCK_KEY = "nota-labeling-organizer-timeline-lock-v1";
   const ALLOWED_ORIGINS = new Set([
     "https://ntt.dev.nota.ai",
@@ -45,6 +48,10 @@
     partIndex: null,
     partStatusOperation: null,
     partScopes: new WeakMap(),
+    clipScopes: new WeakMap(),
+    clipStatusMenu: null,
+    clipMenuTimer: 0,
+    statusFilters: null,
     input: null,
     status: null,
     bboxInput: null,
@@ -69,6 +76,10 @@
     bulkContext: null,
     bulkMode: null,
     bulkDirection: "after",
+    bulkTab: readBulkTab(),
+    bulkStatusContext: null,
+    bulkStatusDirection: "after",
+    bulkStatusValue: "wip",
     markedFrames: new Set(),
     markedScope: null,
     bboxMarkedFrames: new Set(),
@@ -124,6 +135,11 @@
     } catch (_) {
       return "";
     }
+  }
+
+  function readBulkTab() {
+    try { return localStorage.getItem(BULK_TAB_KEY) === "status" ? "status" : "label"; }
+    catch (_) { return "label"; }
   }
 
   function storeFilter(value) {
@@ -242,6 +258,21 @@
     const style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = `
+      #nl-status-filters { display: flex; flex-wrap: wrap; gap: 5px 10px; margin-top: 6px; }
+      #nl-status-filters label { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; cursor: pointer; }
+      #nl-status-filters input { margin: 0; accent-color: #55aaff; }
+      #nl-clip-status-menu {
+        position: fixed; z-index: 10000; width: 205px; max-width: calc(100vw - 16px);
+        box-sizing: border-box; padding: 6px; border: 1px solid #596273; border-radius: 5px;
+        background: #202630; color: #dce4ee; font: 12px/1.4 "Segoe UI", sans-serif;
+        box-shadow: 0 4px 16px #0008;
+      }
+      #nl-clip-status-menu .nl-menu-title { padding: 3px 5px 6px; color: #aeb9c8; }
+      #nl-clip-status-menu button {
+        display: block; width: 100%; padding: 7px; text-align: left; font: inherit;
+        color: inherit; background: transparent; border: 0; border-radius: 3px; cursor: pointer;
+      }
+      #nl-clip-status-menu button:hover, #nl-clip-status-menu button:focus-visible { background: #354355; }
       #nl-timeline-controls {
         display: flex; align-items: center; gap: 6px;
         flex: none; min-width: 0; height: 44px;
@@ -564,6 +595,8 @@
       }
       .nl-bulk-dialog::backdrop { background: rgba(0,0,0,.68); }
       .nl-bulk-dialog .nl-modal { padding: 20px; }
+      .nl-bulk-dialog .nl-bulk-tabs { margin-bottom: 16px; }
+      .nl-bulk-dialog .nl-label-panel[hidden], .nl-bulk-dialog .nl-status-panel[hidden] { display: none !important; }
       .nl-bulk-dialog h2 { margin: 0 0 5px; font-size: 20px; }
       .nl-bulk-dialog .nl-sub { margin: 0 0 15px; color: #c1c8d2; font-size: 13px; }
       .nl-bulk-dialog .nl-label { display: block; margin: 12px 0 6px; color: #e7eaf0; font-size: 13px; }
@@ -586,7 +619,7 @@
       .nl-bulk-dialog .nl-scope label { display: flex; gap: 7px; align-items: flex-start; font-size: 12px; }
       .nl-bulk-dialog .nl-scope label[hidden] { display: none !important; }
       .nl-bulk-dialog .nl-mask-only[hidden] { display: none !important; }
-      .nl-bulk-dialog .nl-count {
+      .nl-bulk-dialog .nl-count, .nl-bulk-dialog .nl-status-count {
         box-sizing: border-box;
         width: 100%;
         height: 40px;
@@ -842,6 +875,7 @@
 
   function navigateOrganizedFrames(direction, amount = 1) {
     if (!pageLabelingReady() || typeof show !== "function") return false;
+    if (state.statusFilters && !S.lseq?.length) return true;
     const navigation = organizedNavigationIndex();
     if (!navigation) return false;
     const active = navigation.all.positions.has(S.g) ? S.g : S.shownG;
@@ -873,6 +907,7 @@
     const nativePlayNext = playNext;
     playNext = function (g, step = 1) {
       if (!pageLabelingReady()) return nativePlayNext.apply(this, arguments);
+      if (state.statusFilters && !S.lseq?.length) return g;
       // The player asks for this once per displayed frame and repeatedly for
       // lookahead. Index the list once, not once per prefetch candidate.
       const cursor = organizedNavigationTarget(g, Math.max(1, Math.abs(Number(step) || 1)));
@@ -1426,13 +1461,16 @@
     if (!pageLabelingReady()) return false;
     if (!markedScopeMatches()) {
       state.markedFrames.clear();
+      state.bboxMarkedFrames.clear();
       state.markedScope = { generation: S.gen, session: S.sess, label: S.labelSel };
+      state.bboxMarkedScope = state.markedScope;
     }
     return true;
   }
 
   function syncBboxMarkedScope() {
     if (!quickBboxReady()) return false;
+    syncMarkedScope();
     if (!bboxMarkedScopeMatches()) {
       state.bboxMarkedFrames.clear();
       state.bboxMarkedScope = { generation: S.gen, session: S.sess, label: S.labelSel };
@@ -1457,11 +1495,6 @@
       return;
     }
     const selectedFrames = bboxMode ? state.bboxMarkedFrames : state.markedFrames;
-    if (!bboxMode) {
-      for (const g of Array.from(selectedFrames)) {
-        if (frameState(g) !== "done") selectedFrames.delete(g);
-      }
-    }
     for (const li of state.list?.querySelectorAll("li[data-g]") || []) {
       const selected = selectedFrames.has(Number(li.dataset.g));
       li.classList.toggle("nl-marked-frame", selected);
@@ -1505,15 +1538,9 @@
       notify(`Current frame unmarked · ${selectedFrames.size} remaining`);
       return;
     }
-    if (!bboxMode && frameState(g) !== "done") {
-      notify("Only Done frames need reopening; this frame is already editable");
-      return;
-    }
     selectedFrames.add(g);
     updateMarkedUI();
-    notify(bboxMode
-      ? `${selectedFrames.size} frames marked · Ctrl+B to repeat the latest bbox operation`
-      : `${selectedFrames.size} frames selected · Ctrl+B to set In progress`);
+    notify(`${selectedFrames.size} frames marked · Ctrl+B to choose Label actions or Change status`);
   }
 
   function buildMarkedBadge() {
@@ -1534,12 +1561,60 @@
     const pane = state.pane;
     const bounds = pane.getBoundingClientRect();
     const row = current.getBoundingClientRect();
+    const contentTop = Math.max(bounds.top, state.toolbar?.getBoundingClientRect().bottom || bounds.top);
+    let anchor = null;
+    if (!(row.height > 0 && row.bottom > contentTop && row.top < bounds.bottom)) {
+      const candidates = [];
+      const add = (element, type, key, priority) => {
+        if (!element) return;
+        const rect = element.getBoundingClientRect();
+        if (rect.height <= 0 || rect.bottom <= contentTop || rect.top >= bounds.bottom) return;
+        candidates.push({ element, type, key, priority, top: rect.top });
+      };
+      const remainsVisible = (container) => Array.from(container.querySelectorAll("li[data-g]"))
+        .some((item) => state.statusFilters?.[frameState(Number(item.dataset.g))] !== false);
+      for (const group of state.list.querySelectorAll(":scope > .grp:not([hidden])")) {
+        if (remainsVisible(group)) add(group, "part", group.dataset.partName, 0);
+      }
+      for (const details of state.list.querySelectorAll(".nl-clip")) {
+        if (remainsVisible(details)) add(details.querySelector(":scope > summary"), "clip", details.dataset.key, 1);
+      }
+      for (const item of state.list.querySelectorAll("li[data-g]")) {
+        const g = Number(item.dataset.g);
+        if (state.statusFilters?.[frameState(g)] !== false) add(item, "frame", g, 2);
+      }
+      const belowTop = candidates.filter((item) => item.top >= contentTop - 1);
+      const pool = belowTop.length ? belowTop : candidates;
+      pool.sort((a, b) => a.top - b.top || a.priority - b.priority);
+      if (pool[0]) {
+        anchor = {
+          type: pool[0].type,
+          key: pool[0].key,
+          offset: pool[0].element.getBoundingClientRect().top - bounds.top
+        };
+      }
+    }
     return {
       pane, generation: S.gen, label: S.labelSel, frame: S.shownG,
       top: pane.scrollTop, left: pane.scrollLeft,
-      offset: row.height > 0 && row.bottom > bounds.top && row.top < bounds.bottom
-        ? row.top - bounds.top : null
+      offset: row.height > 0 && row.bottom > contentTop && row.top < bounds.bottom
+        ? row.top - bounds.top : null,
+      anchor
     };
+  }
+
+  function sidebarAnchorElement(anchor) {
+    if (!anchor) return null;
+    if (anchor.type === "frame") {
+      return Array.from(state.list.querySelectorAll("li[data-g]"))
+        .find((item) => Number(item.dataset.g) === anchor.key) || null;
+    }
+    if (anchor.type === "clip") {
+      return Array.from(state.list.querySelectorAll(".nl-clip"))
+        .find((details) => details.dataset.key === anchor.key)?.querySelector(":scope > summary") || null;
+    }
+    return Array.from(state.list.querySelectorAll(":scope > .grp:not([hidden])"))
+      .find((group) => group.dataset.partName === anchor.key) || null;
   }
 
   function restoreSidebarPosition(position) {
@@ -1549,9 +1624,15 @@
     if (!current || Number(current.dataset.g) !== position.frame) return;
     const row = current.getBoundingClientRect();
     state.pane.scrollLeft = position.left;
-    state.pane.scrollTop = position.offset !== null && row.height > 0
-      ? state.pane.scrollTop + row.top - state.pane.getBoundingClientRect().top - position.offset
-      : position.top;
+    if (position.offset !== null && row.height > 0) {
+      state.pane.scrollTop += row.top - state.pane.getBoundingClientRect().top - position.offset;
+      return;
+    }
+    const anchor = sidebarAnchorElement(position.anchor);
+    if (anchor) {
+      state.pane.scrollTop += anchor.getBoundingClientRect().top -
+        state.pane.getBoundingClientRect().top - position.anchor.offset;
+    } else state.pane.scrollTop = position.top;
   }
 
   function revealCurrentFrame(current = state.list?.querySelector("li.cur")) {
@@ -1564,6 +1645,7 @@
         typeof rvMarkLab !== "function") return;
     const nativeRender = renderLabList;
     renderLabList = function (...args) {
+      closeClipStatusMenu();
       state.navigation = null;
       state.partIndex = null;
       if (state.renderingSidebar) return nativeRender.apply(this, args);
@@ -1578,6 +1660,11 @@
           // Reapply grouping/filtering before restoring scroll. The native
           // flat list has a different height and can clamp scrollTop to zero.
           enhance();
+          if (statusFilterRestricted() && !S.lseq?.length) {
+            const message = "No frames match the selected statuses.";
+            state.list.textContent = message;
+            if (typeof labEmptyView === "function") labEmptyView(message);
+          }
           if (position) restoreSidebarPosition(position);
           else revealCurrentFrame();
         }
@@ -1628,6 +1715,85 @@
   function statusName(value) {
     try { if (typeof FS_NAME !== "undefined" && FS_NAME[value]) return FS_NAME[value]; } catch (_) {}
     return value === "done" ? "Done" : value === "wip" ? "In progress" : "Not checked";
+  }
+
+  function statusFilterRestricted() {
+    return state.statusFilters && FRAME_STATES.some((value) => !state.statusFilters[value]);
+  }
+
+  function followFilteredFrame() {
+    const navigation = organizedNavigationIndex();
+    const rows = navigation?.visible.rows || [];
+    if (rows.length && !navigation.visible.positions.has(Number(S.shownG))) {
+      const next = rows.find((li) => Number(li.dataset.g) > S.shownG) || rows[0];
+      if (typeof show === "function") show(Number(next.dataset.g));
+    } else {
+      if (typeof drawBar === "function") drawBar();
+      if (typeof paint === "function") paint();
+    }
+  }
+
+  function renderStatusFilters() {
+    if (!state.statusFilters || S.mode !== "label") return;
+    const legacy = document.getElementById("onlyTodo")?.closest("label");
+    const progress = document.getElementById("labProg");
+    if (!progress || progress.querySelector("#nl-status-filters")) return;
+    const filters = document.createElement("div");
+    filters.id = "nl-status-filters";
+    filters.setAttribute("role", "group");
+    filters.setAttribute("aria-label", "Show frames by status");
+    for (const value of FRAME_STATES) {
+      const label = document.createElement("label");
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.dataset.state = value;
+      input.checked = state.statusFilters[value];
+      label.append(input, `Show ${statusName(value).toLowerCase()}`);
+      input.addEventListener("change", () => {
+        state.statusFilters[value] = input.checked;
+        try { localStorage.setItem(STATUS_FILTER_KEY, JSON.stringify(state.statusFilters)); } catch (_) {}
+        closeClipStatusMenu();
+        if (typeof pause === "function") pause();
+        input.blur();
+        buildSeq();
+        renderLabList();
+        followFilteredFrame();
+      });
+      filters.append(label);
+    }
+    filters.addEventListener("keydown", (event) => event.stopPropagation());
+    if (legacy) legacy.replaceWith(filters); else progress.append(filters);
+  }
+
+  function ensureStatusFilters() {
+    if (state.statusFilters || typeof buildSeq !== "function" || typeof renderProg !== "function" ||
+        !document.getElementById("labProg") || typeof S === "undefined") return false;
+    let saved;
+    try { saved = JSON.parse(localStorage.getItem(STATUS_FILTER_KEY)); } catch (_) {}
+    state.statusFilters = Object.fromEntries(FRAME_STATES.map((value) => [value,
+      typeof saved?.[value] === "boolean" ? saved[value] : value !== "done" || !S.onlyTodo]));
+    S.onlyTodo = false;
+    const nativeBuild = buildSeq;
+    buildSeq = function (...args) {
+      if (S.mode !== "label") return nativeBuild.apply(this, args);
+      // The extension owns all three status choices; first obtain the full
+      // authorized label sequence from DMS, then apply the selected statuses.
+      const legacyOnlyTodo = S.onlyTodo;
+      S.onlyTodo = false;
+      let result;
+      try { result = nativeBuild.apply(this, args); } finally { S.onlyTodo = legacyOnlyTodo; }
+      S.lseq = Int32Array.from(Array.from(S.lseq || []).filter((g) => state.statusFilters[frameState(g)]));
+      state.navigation = null;
+      return result;
+    };
+    const nativeProgress = renderProg;
+    renderProg = function (...args) {
+      const result = nativeProgress.apply(this, args);
+      renderStatusFilters();
+      return result;
+    };
+    renderStatusFilters();
+    return true;
   }
 
   function refreshClipSummary(details) {
@@ -1688,6 +1854,18 @@
     if (state.statusRenderingInstalled || typeof fsRender !== "function") return;
     const nativeRender = fsRender;
     fsRender = function (...args) {
+      closeClipStatusMenu();
+      if (pageLabelingReady() && statusFilterRestricted()) {
+        const previous = Array.from(S.lseq || []);
+        buildSeq();
+        if (previous.length !== S.lseq.length || previous.some((g, i) => g !== S.lseq[i])) {
+          if (typeof renderTabs === "function") renderTabs();
+          renderLabList();
+          followFilteredFrame();
+          if (typeof lsBoxRender === "function") lsBoxRender();
+          return;
+        }
+      }
       const canPatch = pageLabelingReady() && !S.onlyTodo &&
         Boolean(state.list?.querySelector(".grp.nl-organized"));
       if (!canPatch) return nativeRender.apply(this, args);
@@ -1791,21 +1969,27 @@
       const statusActions = document.createElement("div");
       statusActions.className = "nl-clip-status-actions";
       statusActions.setAttribute("role", "group");
-      statusActions.setAttribute("aria-label", `Set status for the entire clip ${no} · ${partName}`);
-      for (const [value, caption, title] of [
-        ["done", "Done", "Set every frame in this clip to Done"],
-        ["todo", "Not checked", "Set every frame in this clip to Not checked"],
-        ["wip", "In progress", "Set every frame in this clip to In progress"]
-      ]) {
+      statusActions.setAttribute("aria-label", `Change frames by current status in clip ${no} · ${partName}`);
+      state.clipScopes.set(details, { session: S.sess, generation: S.gen, label: S.labelSel });
+      for (const value of ["done", "todo", "wip"]) {
         const button = document.createElement("button");
         button.type = "button";
         button.dataset.state = value;
-        button.textContent = caption;
-        button.title = title;
+        button.textContent = statusName(value);
+        button.setAttribute("aria-haspopup", "menu");
+        button.setAttribute("aria-expanded", "false");
+        button.addEventListener("mouseenter", () => openClipStatusMenu(details, button));
+        button.addEventListener("mouseleave", scheduleCloseClipStatusMenu);
         button.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
-          setWholeClipState(details, value, button);
+          openClipStatusMenu(details, button, true);
+        });
+        button.addEventListener("keydown", (event) => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            openClipStatusMenu(details, button, true);
+          }
         });
         statusActions.appendChild(button);
       }
@@ -1864,8 +2048,7 @@
   function refreshClipStatusControls(details) {
     const control = details.querySelector(".nl-clip-status-actions");
     if (!control || control.dataset.busy === "true") return;
-    const states = Array.from(details.querySelectorAll("li[data-g]"))
-      .map((li) => frameState(Number(li.dataset.g)));
+    const states = clipFrames(details).map((g) => frameState(g));
     if (!states.length) return;
     const allDone = states.every((value) => value === "done");
     const allWip = states.every((value) => value === "wip");
@@ -1874,7 +2057,10 @@
       const value = button.dataset.state;
       const current = value === "done" ? allDone : value === "wip" ? allWip : allTodo;
       button.classList.toggle("current", current);
-      button.disabled = current || state.operationBusy;
+      const count = states.filter((item) => item === value).length;
+      button.disabled = !count || state.operationBusy;
+      button.title = `${count} ${statusName(value)} frames · Choose a new status`;
+      button.setAttribute("aria-label", `${statusName(value)}: change ${count} frames in this clip`);
       button.setAttribute("aria-pressed", String(current));
     }
   }
@@ -1884,19 +2070,35 @@
     return clip ? (clip.long ? "__long" : clip.cat) : "__none";
   }
 
+  function frameClipKey(g) {
+    const clip = clipAt(g);
+    return JSON.stringify([framePartKey(g), clip?.long ? clip.cat : clip?.n ?? null]);
+  }
+
+  function clipFrames(details) {
+    const visible = Array.from(details.querySelectorAll("li[data-g]"), (li) => Number(li.dataset.g));
+    const row = details.closest(".grp");
+    if (!row || !visible.length) return visible;
+    partFrames(row); // Build the shared complete-label index, including hidden frames.
+    return state.partIndex?.clips.get(frameClipKey(visible[0])) || visible;
+  }
+
   function partFrames(row) {
     const visible = () => Array.from(row.querySelectorAll("li[data-g]"), (li) => Number(li.dataset.g));
     if (!S.review || typeof rvG !== "function" || typeof clipAt !== "function") return visible();
     let index = state.partIndex;
     if (!index || index.session !== S.sess || index.generation !== S.gen ||
         index.label !== S.labelSel || index.review !== S.review) {
-      index = { session: S.sess, generation: S.gen, label: S.labelSel, review: S.review, groups: new Map() };
+      index = { session: S.sess, generation: S.gen, label: S.labelSel, review: S.review, groups: new Map(), clips: new Map() };
       const frames = [...new Set(Object.values(S.review).filter((item) => item.labels?.includes(S.labelSel))
         .map((item) => rvG(item)).filter((g) => Number.isInteger(g) && g >= 0))].sort((a, b) => a - b);
       for (const g of frames) {
         const key = framePartKey(g);
         if (!index.groups.has(key)) index.groups.set(key, []);
         index.groups.get(key).push(g);
+        const clipKey = frameClipKey(g);
+        if (!index.clips.has(clipKey)) index.clips.set(clipKey, []);
+        index.clips.get(clipKey).push(g);
       }
       state.partIndex = index;
     }
@@ -2055,13 +2257,90 @@
     updateFrameState(g, label, value, data);
   }
 
-  async function setWholeClipState(details, value, sourceButton) {
-    if (!pageLabelingReady() || state.operationBusy) return;
-    const label = S.labelSel;
-    const generation = S.gen;
-    const targets = Array.from(details.querySelectorAll("li[data-g]"))
-      .map((li) => Number(li.dataset.g))
-      .filter((g) => Number.isInteger(g) && frameState(g) !== value);
+  function closeClipStatusMenu(restoreFocus = false) {
+    clearTimeout(state.clipMenuTimer);
+    const menu = state.clipStatusMenu;
+    if (!menu) return;
+    state.clipStatusMenu = null;
+    menu.element.remove();
+    menu.button.setAttribute("aria-expanded", "false");
+    if (restoreFocus && menu.button.isConnected) menu.button.focus({ preventScroll: true });
+  }
+
+  function scheduleCloseClipStatusMenu() {
+    clearTimeout(state.clipMenuTimer);
+    state.clipMenuTimer = setTimeout(() => {
+      const menu = state.clipStatusMenu;
+      if (menu && !menu.element.contains(document.activeElement)) closeClipStatusMenu();
+    }, 180);
+  }
+
+  function openClipStatusMenu(details, button, focus = false) {
+    clearTimeout(state.clipMenuTimer);
+    if (button.disabled || !details.isConnected || !partStatusMatches(state.clipScopes.get(details))) return;
+    if (state.clipStatusMenu?.button === button) {
+      if (focus) state.clipStatusMenu.element.querySelector("button").focus({ preventScroll: true });
+      return;
+    }
+    closeClipStatusMenu();
+    const source = button.dataset.state;
+    const count = clipFrames(details).filter((g) => frameState(g) === source).length;
+    if (!count) return;
+    const menu = document.createElement("div");
+    menu.id = "nl-clip-status-menu";
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("aria-label", `Change ${statusName(source)} frames in clip ${details.dataset.clip}`);
+    const title = document.createElement("div");
+    title.className = "nl-menu-title";
+    title.textContent = `${statusName(source)} · ${count} frames`;
+    menu.append(title);
+    for (const destination of FRAME_STATES.filter((value) => value !== source)) {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.setAttribute("role", "menuitem");
+      option.dataset.targetState = destination;
+      option.textContent = `→ ${statusName(destination)}`;
+      option.addEventListener("click", (event) => {
+        event.stopPropagation();
+        closeClipStatusMenu();
+        setClipSourceState(details, source, destination, button);
+      });
+      menu.append(option);
+    }
+    menu.addEventListener("mouseenter", () => clearTimeout(state.clipMenuTimer));
+    menu.addEventListener("mouseleave", scheduleCloseClipStatusMenu);
+    menu.addEventListener("focusout", () => {
+      setTimeout(() => {
+        if (state.clipStatusMenu?.element === menu && !menu.contains(document.activeElement) &&
+            document.activeElement !== button) closeClipStatusMenu();
+      }, 0);
+    });
+    menu.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+      const options = Array.from(menu.querySelectorAll("button"));
+      const index = options.indexOf(document.activeElement);
+      if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+        event.preventDefault();
+        const next = event.key === "Home" ? 0 : event.key === "End" ? options.length - 1 :
+          (index + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length;
+        options[next].focus({ preventScroll: true });
+      }
+    });
+    document.body.append(menu);
+    const rect = button.getBoundingClientRect();
+    menu.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - menu.offsetWidth - 8))}px`;
+    menu.style.top = `${Math.max(8, rect.bottom + menu.offsetHeight <= innerHeight - 8
+      ? rect.bottom : rect.top - menu.offsetHeight)}px`;
+    state.clipStatusMenu = { element: menu, button, details };
+    button.setAttribute("aria-expanded", "true");
+    if (focus) menu.querySelector("button").focus({ preventScroll: true });
+  }
+
+  async function setClipSourceState(details, source, value, sourceButton) {
+    const operation = state.clipScopes.get(details);
+    if (!partStatusMatches(operation) || state.operationBusy || !details.isConnected ||
+        source === value || !FRAME_STATES.includes(source) || !FRAME_STATES.includes(value)) return;
+    const targets = clipFrames(details).filter((g) => Number.isInteger(g) && frameState(g) === source);
 
     if (!targets.length) {
       refreshClipStatusControls(details);
@@ -2077,22 +2356,32 @@
     sourceButton.textContent = `0/${targets.length}`;
 
     try {
+      if (typeof pause === "function") pause();
+      let saved = 0;
       const result = await runQueue(
         targets,
-        (g) => saveFrameState(g, label, value, generation),
+        async (g) => {
+          if (!partStatusMatches(operation)) throw new Error("The session or label has changed");
+          if (frameState(g) !== source) return;
+          await saveFrameState(g, operation.label, value, operation.generation, operation.session);
+          saved += 1;
+          if (!partStatusMatches(operation)) throw new Error("The session or label has changed");
+        },
         (done, total) => { if (sourceButton.isConnected) sourceButton.textContent = `${done}/${total}`; },
         4
       );
-      if (typeof fsRender === "function" && S.gen === generation) fsRender();
-      const action = value === "done" ? "Done" : value === "wip" ? "In progress" : "Not checked";
-      if (result.error) notify(`Set ${result.completed}/${targets.length} frames to ${action}; stopped on error: ${result.error.message}`);
-      else notify(`Set ${targets.length} frames in this clip to ${action}`);
+      if (partStatusMatches(operation)) {
+        if (typeof fsRender === "function") fsRender();
+        const action = `${statusName(source)} → ${statusName(value)}`;
+        if (result.error) notify(`${action}: saved ${saved}/${targets.length}; stopped on error: ${result.error.message}`);
+        else notify(`${action}: changed ${saved} frames in this clip`);
+      }
     } finally {
       state.operationBusy = false;
       delete control.dataset.busy;
       control.removeAttribute("aria-busy");
       if (sourceButton.isConnected) sourceButton.textContent = originalText;
-      if (control.isConnected && S.gen === generation) refreshClipStatusControls(details);
+      if (control.isConnected && partStatusMatches(operation)) refreshClipStatusControls(details);
       refreshStatusControls();
     }
   }
@@ -3114,6 +3403,252 @@
     if (typeof edRepaint === "function") edRepaint();
   }
 
+  function bulkStatusFrames() {
+    const frames = S.review && typeof rvG === "function"
+      ? Object.values(S.review).filter((item) => item.labels?.includes(S.labelSel)).map(rvG)
+      : Array.from(S.lseq || []);
+    return [...new Set(frames.filter((g) => Number.isInteger(g) && g >= 0))].sort((a, b) => a - b);
+  }
+
+  function bulkMarkedFrames() {
+    if (quickBboxReady()) {
+      syncBboxMarkedScope();
+      return state.bboxMarkedFrames;
+    }
+    syncMarkedScope();
+    return state.markedFrames;
+  }
+
+  function prepareBulkStatusContext() {
+    const allowed = bulkStatusFrames();
+    const source = Number(S.shownG);
+    const sourceClip = typeof clipAt === "function" ? frameClipKey(source) : null;
+    const row = state.list?.querySelector(`li[data-g="${source}"]`);
+    const details = row?.closest(".nl-clip");
+    const frames = sourceClip !== null ? allowed.filter((g) => frameClipKey(g) === sourceClip) :
+      Array.from(details?.querySelectorAll("li[data-g]") || [], (li) => Number(li.dataset.g));
+    state.bulkStatusContext = {
+      session: S.sess, generation: S.gen, label: S.labelSel, source,
+      allowed: new Set(allowed), frames, sourceIndex: frames.indexOf(source),
+      clip: details?.dataset.clip || "current clip"
+    };
+    bulkMarkedFrames();
+  }
+
+  function installBulkTabs(dialog) {
+    const form = dialog.querySelector("form");
+    const labelPanel = document.createElement("div");
+    labelPanel.className = "nl-label-panel";
+    labelPanel.id = `${dialog.id}-label-panel`;
+    labelPanel.setAttribute("role", "tabpanel");
+    labelPanel.append(...form.childNodes);
+    const tabs = document.createElement("div");
+    tabs.className = "nl-choice nl-bulk-tabs";
+    tabs.setAttribute("role", "tablist");
+    tabs.setAttribute("aria-label", "Bulk action type");
+    for (const [tab, caption] of [["label", "Label actions"], ["status", "Change status"]]) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.bulkTab = tab;
+      button.id = `${dialog.id}-${tab}-tab`;
+      button.setAttribute("role", "tab");
+      button.setAttribute("aria-controls", `${dialog.id}-${tab}-panel`);
+      button.textContent = caption;
+      button.addEventListener("click", () => selectBulkTab(dialog, tab));
+      button.addEventListener("keydown", (event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        event.preventDefault();
+        if (state.operationBusy) return;
+        const next = tab === "label" ? "status" : "label";
+        selectBulkTab(dialog, next);
+        tabs.querySelector(`[data-bulk-tab="${next}"]`).focus();
+      });
+      tabs.append(button);
+    }
+    const statusPanel = document.createElement("div");
+    statusPanel.className = "nl-status-panel";
+    statusPanel.id = `${dialog.id}-status-panel`;
+    statusPanel.setAttribute("role", "tabpanel");
+    labelPanel.setAttribute("aria-labelledby", `${dialog.id}-label-tab`);
+    statusPanel.setAttribute("aria-labelledby", `${dialog.id}-status-tab`);
+    statusPanel.innerHTML = `
+      <h2>Change frame status</h2>
+      <p class="nl-sub nl-status-sub"></p>
+      <span class="nl-label">Target frames</span>
+      <div class="nl-choice">
+        <button type="button" data-status-direction="before">← Previous frames</button>
+        <button type="button" data-status-direction="after">Next frames →</button>
+        <button type="button" data-status-direction="marked">◆ Marked frames</button>
+      </div>
+      <span class="nl-label">Set status to</span>
+      <div class="nl-scope">
+        <label><input type="radio" name="${dialog.id}-status" value="todo">Not checked</label>
+        <label><input type="radio" name="${dialog.id}-status" value="wip">In progress</label>
+        <label><input type="radio" name="${dialog.id}-status" value="done">Done</label>
+      </div>
+      <label class="nl-label" for="${dialog.id}-status-count">Number of target frames, or end</label>
+      <input id="${dialog.id}-status-count" class="nl-status-count" value="1" autocomplete="off" spellcheck="false">
+      <div class="nl-preview nl-status-preview" aria-live="polite"></div>
+      <div class="nl-actions">
+        <button type="button" class="nl-status-cancel">Cancel · Esc</button>
+        <button type="button" class="primary nl-status-apply">Apply · Enter</button>
+      </div>`;
+    form.append(tabs, labelPanel, statusPanel);
+    for (const button of statusPanel.querySelectorAll("[data-status-direction]")) {
+      button.addEventListener("click", () => {
+        if (state.operationBusy) return;
+        state.bulkStatusDirection = button.dataset.statusDirection;
+        updateBulkStatusPanel(dialog);
+      });
+    }
+    for (const radio of statusPanel.querySelectorAll('input[type="radio"]')) {
+      radio.addEventListener("change", () => {
+        state.bulkStatusValue = radio.value;
+        updateBulkStatusPanel(dialog);
+      });
+    }
+    statusPanel.querySelector(".nl-status-count").addEventListener("input", () => updateBulkStatusPanel(dialog));
+    statusPanel.querySelector(".nl-status-apply").addEventListener("click", () => applyBulkStatus(dialog));
+    statusPanel.querySelector(".nl-status-cancel").addEventListener("click", () => {
+      if (!state.operationBusy) dialog.close();
+    });
+  }
+
+  function selectBulkTab(dialog, tab, remember = true) {
+    if (state.operationBusy) return;
+    state.bulkTab = tab;
+    if (remember) {
+      try { localStorage.setItem(BULK_TAB_KEY, tab); } catch (_) {}
+    }
+    dialog.querySelector(".nl-label-panel").hidden = tab !== "label";
+    dialog.querySelector(".nl-status-panel").hidden = tab !== "status";
+    for (const button of dialog.querySelectorAll("[data-bulk-tab]")) {
+      const active = button.dataset.bulkTab === tab;
+      button.classList.toggle("on", active);
+      button.setAttribute("aria-selected", String(active));
+      button.tabIndex = active ? 0 : -1;
+    }
+    if (tab === "status") {
+      dialog.classList.remove("nl-subtract");
+      updateBulkStatusPanel(dialog);
+    } else if (dialog === state.eyeBulkDialog) updateEyeBulkDialog();
+    else updateBulkDialog();
+  }
+
+  function showBulkDialog(dialog) {
+    prepareBulkStatusContext();
+    selectBulkTab(dialog, state.bulkTab, false);
+    if (!dialog.open) dialog.showModal();
+    const input = dialog.querySelector(state.bulkTab === "status" ? ".nl-status-count" : ".nl-count");
+    if (input.disabled) dialog.querySelector('[data-bulk-tab][aria-selected="true"]').focus();
+    else { input.focus(); input.select(); }
+  }
+
+  function emptyLabelBulkContext(label) {
+    return {
+      frames: [], source: Number(S.shownG), sourceIndex: -1, clip: "No visible clip",
+      generation: S.gen, sourceKey: typeof rvKey === "function" ? rvKey(S.shownG) : "",
+      label, labelName: genericLabelName(label), sourceItems: [], selected: []
+    };
+  }
+
+  function selectedStatusTargets(dialog) {
+    const context = state.bulkStatusContext;
+    if (!partStatusMatches(context) ||
+        (state.bulkStatusDirection !== "marked" && context.source !== Number(S.shownG))) {
+      return { targets: [], error: "The frame, session or label has changed. Reopen Ctrl+B." };
+    }
+    if (state.bulkStatusDirection === "marked") {
+      const targets = Array.from(bulkMarkedFrames()).filter((g) => context.allowed.has(g)).sort((a, b) => a - b);
+      return { targets, error: targets.length ? "" : "No frames marked. Close this dialog and press V to mark frames." };
+    }
+    if (context.sourceIndex < 0) return { targets: [], error: "Open a frame in the current label's clip first." };
+    const raw = dialog.querySelector(".nl-status-count").value.trim().toLowerCase();
+    if (raw !== "end" && !/^[1-9]\d*$/.test(raw)) return { targets: [], error: "Enter a positive whole number or end." };
+    // Status counts include the frame currently being viewed. Label actions
+    // use their own target selectors and continue to exclude the source frame.
+    const candidates = state.bulkStatusDirection === "before"
+      ? [context.source, ...context.frames.slice(0, context.sourceIndex).reverse()]
+      : [context.source, ...context.frames.slice(context.sourceIndex + 1)];
+    const targets = candidates.slice(0, raw === "end" ? candidates.length : Number(raw));
+    return { targets, error: targets.length ? "" : "No more frames in this direction within the current clip." };
+  }
+
+  function updateBulkStatusPanel(dialog) {
+    const context = state.bulkStatusContext;
+    if (!context) return;
+    for (const button of dialog.querySelectorAll("[data-status-direction]")) {
+      button.classList.toggle("on", button.dataset.statusDirection === state.bulkStatusDirection);
+    }
+    const marked = Array.from(bulkMarkedFrames()).filter((g) => context.allowed.has(g)).length;
+    dialog.querySelector('[data-status-direction="marked"]').textContent = `◆ Marked frames (${marked})`;
+    dialog.querySelector(".nl-status-count").disabled = state.bulkStatusDirection === "marked";
+    dialog.querySelector(`.nl-status-panel input[value="${state.bulkStatusValue}"]`).checked = true;
+    dialog.querySelector(".nl-status-sub").textContent =
+      `Label: ${genericLabelName(context.label)} · ${context.clip}. Existing annotations are preserved.`;
+    const picked = selectedStatusTargets(dialog);
+    const unchanged = picked.targets.filter((g) => frameState(g) === state.bulkStatusValue).length;
+    const count = picked.targets.length - unchanged;
+    const preview = dialog.querySelector(".nl-status-preview");
+    preview.classList.toggle("err", Boolean(picked.error));
+    preview.textContent = picked.error ||
+      `Set ${count} of ${picked.targets.length} frames to ${statusName(state.bulkStatusValue)}` +
+      (unchanged ? ` · ${unchanged} already have this status` : "") + ". " +
+      (state.bulkStatusDirection === "marked"
+        ? "Includes the current frame if marked; marked frames may span clips."
+        : "Within this clip, including the current frame; includes frames hidden by status filters.");
+    dialog.querySelector(".nl-status-apply").disabled = Boolean(picked.error) || !count || state.operationBusy;
+  }
+
+  async function applyBulkStatus(dialog) {
+    if (state.operationBusy || state.bulkTab !== "status") return;
+    const picked = selectedStatusTargets(dialog);
+    const context = state.bulkStatusContext;
+    const value = state.bulkStatusValue;
+    if (picked.error || !FRAME_STATES.includes(value)) { updateBulkStatusPanel(dialog); return; }
+    // Recheck authorization when applying; a filter changes visibility, not the
+    // complete current-label scope. Status changes never read/write annotations.
+    const allowed = new Set(bulkStatusFrames());
+    const targets = picked.targets.filter((g) => allowed.has(g) && frameState(g) !== value);
+    if (!targets.length) { updateBulkStatusPanel(dialog); return; }
+    const controls = Array.from(dialog.querySelectorAll("button, input"));
+    const disabled = controls.map((control) => control.disabled);
+    const preview = dialog.querySelector(".nl-status-preview");
+    state.operationBusy = true;
+    for (const control of controls) control.disabled = true;
+    refreshStatusControls();
+    try {
+      if (typeof pause === "function") pause();
+      const result = await runQueue(targets, async (g) => {
+        if (!partStatusMatches(context)) throw new Error("The session or label has changed");
+        if (frameState(g) !== value) await saveFrameState(g, context.label, value, context.generation, context.session);
+        if (!partStatusMatches(context)) throw new Error("The session or label has changed");
+      }, (done, total) => {
+        preview.classList.remove("err");
+        preview.textContent = `Setting ${done}/${total} frames to ${statusName(value)}…`;
+      });
+      if (partStatusMatches(context)) {
+        if (typeof fsRender === "function") fsRender();
+        updateMarkedUI();
+      }
+      if (result.error) throw new Error(`saved ${result.completed}/${targets.length}: ${result.error.message}`);
+      dialog.close();
+      notify(`Set ${targets.length} frames to ${statusName(value)}`);
+    } catch (error) {
+      preview.classList.add("err");
+      preview.textContent = `Stopped on error: ${error.message}. Retry to save remaining frames.`;
+    } finally {
+      state.operationBusy = false;
+      controls.forEach((control, index) => { control.disabled = disabled[index]; });
+      refreshStatusControls();
+      if (dialog.open) {
+        const remaining = selectedStatusTargets(dialog);
+        dialog.querySelector(".nl-status-apply").disabled = Boolean(remaining.error) ||
+          !remaining.targets.some((g) => frameState(g) !== value);
+      }
+    }
+  }
+
   function ensureEyeBulkDialog() {
     if (state.eyeBulkDialog?.isConnected) return state.eyeBulkDialog;
     const dialog = document.createElement("dialog");
@@ -3179,9 +3714,11 @@
     dialog.addEventListener("close", () => {
       if (!dialog.open) {
         state.eyeBulkContext = null;
+        state.bulkStatusContext = null;
         if (dialog.contains(document.activeElement)) document.activeElement.blur();
       }
     });
+    installBulkTabs(dialog);
     state.eyeBulkDialog = dialog;
     return dialog;
   }
@@ -3294,22 +3831,12 @@
 
   function openEyeBulkDialog() {
     if (state.operationBusy) return;
-    const context = currentEyeClipContext();
-    if (!context) {
-      notify("Open an eye 15pt frame in a clip first");
-      return;
-    }
-    if (!context.sourceItems.length) {
-      notify("This frame has no eye 15pt annotations to copy");
-      return;
-    }
+    const context = currentEyeClipContext() || emptyLabelBulkContext("eye_lmk");
     state.eyeBulkContext = context;
     const dialog = ensureEyeBulkDialog();
     dialog.querySelector(`input[name="nl-eye-scope"][value="${context.selected.length ? "selected" : "all"}"]`).checked = true;
     updateEyeBulkDialog();
-    if (!dialog.open) dialog.showModal();
-    dialog.querySelector(".nl-count").focus();
-    dialog.querySelector(".nl-count").select();
+    showBulkDialog(dialog);
   }
 
   function openGenericBulkDialog() {
@@ -3317,22 +3844,12 @@
     if (QUICK_BBOX_LABELS.has(S.labelSel)) syncBboxMarkedScope();
     if (state.eyeBulkDirection === "marked" &&
         (!bboxMarkedScopeMatches() || !state.bboxMarkedFrames.size)) state.eyeBulkDirection = "after";
-    const context = currentGenericClipContext();
-    if (!context) {
-      notify("Open a frame in a clip before copying");
-      return;
-    }
-    if (!context.sourceItems.length && !context.operation) {
-      notify(`This frame has no ${context.labelName} objects to copy`);
-      return;
-    }
+    const context = currentGenericClipContext() || emptyLabelBulkContext(S.labelSel);
     state.eyeBulkContext = context;
     const dialog = ensureEyeBulkDialog();
     dialog.querySelector(`input[name="nl-eye-scope"][value="${context.selected.length ? "selected" : "all"}"]`).checked = true;
     updateEyeBulkDialog();
-    if (!dialog.open) dialog.showModal();
-    dialog.querySelector(".nl-count").focus();
-    dialog.querySelector(".nl-count").select();
+    showBulkDialog(dialog);
   }
 
   function currentClipContext() {
@@ -3366,8 +3883,6 @@
       <form class="nl-modal" method="dialog">
         <h2>Apply seatbelt masks across a clip</h2>
         <p class="nl-sub"></p>
-
-        <p class="nl-status-only" hidden></p>
 
         <span class="nl-label nl-mask-only">Target direction</span>
         <div class="nl-choice nl-directions nl-mask-only">
@@ -3419,16 +3934,18 @@
       if (!dialog.open) {
         state.bulkContext = null;
         state.bulkMode = null;
+        state.bulkStatusContext = null;
         if (dialog.contains(document.activeElement)) document.activeElement.blur();
       }
     });
+    installBulkTabs(dialog);
     state.bulkDialog = dialog;
     return dialog;
   }
 
   function cancelBulkDialog() {
     if (state.operationBusy) return;
-    if (state.bulkMode === "mask") cancelManualMode();
+    if (state.bulkMode === "mask" && state.bulkTab === "label") cancelManualMode();
     state.bulkContext = null;
     if (state.bulkDialog?.contains(document.activeElement)) document.activeElement.blur();
     state.bulkDialog?.close();
@@ -3455,29 +3972,6 @@
     const dialog = state.bulkDialog;
     const context = state.bulkContext;
     if (!dialog || !context) return;
-    const statusMode = state.bulkMode === "status";
-    dialog.classList.toggle("nl-status-mode", statusMode);
-    dialog.classList.toggle("nl-subtract", false);
-    for (const element of dialog.querySelectorAll(".nl-mask-only")) element.hidden = statusMode;
-    const statusOnly = dialog.querySelector(".nl-status-only");
-    statusOnly.hidden = !statusMode;
-    if (statusMode) {
-      const selected = Array.from(state.markedFrames);
-      const targets = selected.filter((g) => frameState(g) === "done");
-      dialog.querySelector("h2").textContent = "Set selected frames to In progress";
-      dialog.querySelector(".nl-sub").textContent =
-        `${context.label} · ${selected.length} frames selected. Existing masks and tags are preserved.`;
-      statusOnly.textContent = "Reopened frames can be edited as usual.";
-      const preview = dialog.querySelector(".nl-preview");
-      preview.classList.toggle("err", !targets.length);
-      preview.textContent = targets.length
-        ? `Set ${targets.length} frames from Done to In progress. Up to 4 requests run at a time.`
-        : "No Done frames remain in the selection.";
-      const apply = dialog.querySelector(".nl-apply");
-      apply.textContent = "Set In progress · Enter";
-      apply.disabled = !targets.length || state.operationBusy;
-      return;
-    }
     dialog.querySelector(".nl-apply").textContent = "Apply · Enter";
     for (const button of dialog.querySelectorAll("[data-direction]")) {
       button.classList.toggle("on", button.dataset.direction === state.bulkDirection);
@@ -3509,9 +4003,11 @@
     const picked = selectedBulkTargets();
     const emptySamPatch = samPatch && !state.lastPatch.pixelCount &&
       dialog.querySelector('input[name="nl-scope"]:checked')?.value === "patch";
+    const blocked = maskBulkBlockReason();
     const preview = dialog.querySelector(".nl-preview");
-    preview.classList.toggle("err", Boolean(picked.error) || emptySamPatch);
-    if (picked.error) preview.textContent = picked.error;
+    preview.classList.toggle("err", Boolean(blocked || picked.error) || emptySamPatch);
+    if (blocked) preview.textContent = blocked;
+    else if (picked.error) preview.textContent = picked.error;
     else if (emptySamPatch) preview.textContent = subtract
       ? "SAM3 removed no pixels in this frame. Select an area to erase."
       : "SAM3 added no new pixels in this frame. Choose the entire mask to copy the existing mask.";
@@ -3522,25 +4018,11 @@
       preview.textContent = `${action} ${picked.targets.length} target frames · ${state.bulkDirection === "after" ? "after" : "before"} the current frame` +
         (skipped ? ` · skip ${skipped} Done frames` : "") + ". Up to 4 requests run at a time.";
     }
-    dialog.querySelector(".nl-apply").disabled = Boolean(picked.error) || emptySamPatch || state.operationBusy;
+    dialog.querySelector(".nl-apply").disabled = Boolean(blocked || picked.error) || emptySamPatch || state.operationBusy;
   }
 
   function openBulkDialog() {
-    if (state.operationBusy) return;
-    syncMarkedScope();
-    if (state.markedFrames.size) {
-      state.bulkMode = "status";
-      state.bulkContext = {
-        generation: S.gen,
-        session: S.sess,
-        label: S.labelSel
-      };
-      const dialog = ensureBulkDialog();
-      updateBulkDialog();
-      if (!dialog.open) dialog.showModal();
-      dialog.querySelector(".nl-apply").focus();
-      return;
-    }
+    if (state.operationBusy || anyBulkDialogOpen()) return;
     if (S.labelSel === "eye_lmk") {
       openEyeBulkDialog();
       return;
@@ -3549,33 +4031,21 @@
       openGenericBulkDialog();
       return;
     }
-    const context = currentClipContext();
-    if (!context) {
-      notify("Open a seatbelt frame in a clip first");
-      return;
-    }
-    if (typeof BT !== "undefined") {
-      if (state.manualMode && BT.poly.length) {
-        notify("Close the polygon before Ctrl+B, or press Esc to cancel drawing");
-        return;
-      }
-      if (BT.busy) {
-        notify("SAM3 is generating a mask. Wait for the result, then press R to add it before Ctrl+B");
-        return;
-      }
-      if (BT.prev || BT.points.length) {
-        notify("Press R to add the green SAM3 preview before Ctrl+B, or Esc to cancel the preview");
-        return;
-      }
-    }
+    const context = currentClipContext() || emptyLabelBulkContext(S.labelSel);
     state.bulkMode = "mask";
     state.bulkContext = context;
     const dialog = ensureBulkDialog();
     dialog.querySelector(`input[name="nl-scope"][value="${patchMatchesContext(context) ? "patch" : "mask"}"]`).checked = true;
     updateBulkDialog();
-    if (!dialog.open) dialog.showModal();
-    dialog.querySelector(".nl-count").focus();
-    dialog.querySelector(".nl-count").select();
+    showBulkDialog(dialog);
+  }
+
+  function maskBulkBlockReason() {
+    if (typeof BT === "undefined") return "";
+    if (state.manualMode && BT.poly?.length) return "Close the polygon before copying, or cancel drawing with Esc.";
+    if (BT.busy) return "SAM3 is generating a mask. Wait, then press R to add it before copying.";
+    if (BT.prev || BT.points?.length) return "Press R to add the SAM3 preview before copying, or cancel it with Esc.";
+    return "";
   }
 
   function decodeRle(counts, size) {
@@ -3980,7 +4450,8 @@
   }
 
   function applyItemBulkCopy() {
-    if (state.eyeBulkContext?.label === "eye_lmk") applyEyeBulkCopy();
+    if (state.bulkTab === "status") applyBulkStatus(state.eyeBulkDialog);
+    else if (state.eyeBulkContext?.label === "eye_lmk") applyEyeBulkCopy();
     else applyGenericBulkCopy();
   }
 
@@ -4112,58 +4583,15 @@
   }
 
   function applyBulkAction() {
-    if (state.bulkMode === "status") applySelectedInProgress();
+    if (state.bulkTab === "status") applyBulkStatus(state.bulkDialog);
     else applyBulkCopy();
-  }
-
-  async function applySelectedInProgress() {
-    if (state.operationBusy || !pageLabelingReady()) return;
-    const context = state.bulkContext;
-    if (!context || context.generation !== S.gen || context.session !== S.sess || context.label !== S.labelSel) {
-      updateBulkDialog();
-      return;
-    }
-    const targets = Array.from(state.markedFrames).filter((g) => frameState(g) === "done");
-    if (!targets.length) {
-      updateBulkDialog();
-      return;
-    }
-    const dialog = state.bulkDialog;
-    const preview = dialog.querySelector(".nl-preview");
-    const apply = dialog.querySelector(".nl-apply");
-    state.operationBusy = true;
-    apply.disabled = true;
-
-    try {
-      const result = await runQueue(targets, async (g) => {
-        await saveFrameState(g, context.label, "wip", context.generation);
-        state.markedFrames.delete(g);
-      }, (done, total) => {
-        preview.classList.remove("err");
-        preview.textContent = `Setting ${done}/${total} frames to In progress…`;
-      }, 4);
-      if (typeof fsRender === "function" && S.gen === context.generation) fsRender();
-      updateMarkedUI();
-      if (result.error) throw new Error(`updated ${result.completed}/${targets.length}: ${result.error.message}`);
-      dialog.close();
-      notify(`Set ${targets.length} frames to In progress`);
-    } catch (error) {
-      preview.classList.add("err");
-      preview.textContent = `Stopped on error: ${error.message}. Frames not yet reopened remain selected.`;
-    } finally {
-      state.operationBusy = false;
-      refreshStatusControls();
-      if (apply.isConnected && dialog.open) {
-        apply.disabled = !Array.from(state.markedFrames).some((g) => frameState(g) === "done");
-      }
-    }
   }
 
   async function applyBulkCopy() {
     if (state.operationBusy || !pageLabelingReady("seatbelt")) return;
     const context = state.bulkContext;
     const picked = selectedBulkTargets();
-    if (!context || picked.error) {
+    if (!context || picked.error || maskBulkBlockReason()) {
       updateBulkDialog();
       return;
     }
@@ -4680,6 +5108,13 @@
 
   function onGlobalKeyDown(event) {
     const target = event.target;
+    if (event.code === "Escape" && state.clipStatusMenu) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closeClipStatusMenu(true);
+      return;
+    }
+    if (target?.closest?.("#nl-clip-status-menu, .nl-clip-status-actions, #nl-status-filters")) return;
     const typing = target?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target?.tagName || "");
     if (event.code === "KeyR" && !event.ctrlKey && !event.metaKey && !event.altKey && !typing) {
       const pendingSam = samAcceptAvailable() && (BT.prev || BT.busy || BT.points.length);
@@ -5135,6 +5570,7 @@
     ensureTimelineLock();
 
     if (!isLabelingMode()) {
+      closeClipStatusMenu();
       state.sidebarScope = null;
       if (state.toolbar) state.toolbar.hidden = true;
       if (state.markedBadge) state.markedBadge.hidden = true;
@@ -5146,6 +5582,14 @@
     state.toolbar.hidden = false;
     ensureSidebarRendering();
     ensureStatusRendering();
+    if (ensureStatusFilters() && statusFilterRestricted()) {
+      buildSeq();
+      renderLabList();
+      followFilteredFrame();
+      return;
+    }
+    if (state.clipStatusMenu && (!state.clipStatusMenu.details.isConnected ||
+        !partStatusMatches(state.clipScopes.get(state.clipStatusMenu.details)))) closeClipStatusMenu();
     ensureOrganizedPlayback();
     ensureNativeEditing();
     ensureBboxEditing();
@@ -5220,6 +5664,14 @@
     };
 
     window.addEventListener("keydown", onGlobalKeyDown, true);
+    window.addEventListener("pointerdown", (event) => {
+      const menu = state.clipStatusMenu;
+      if (menu && !menu.element.contains(event.target) && !menu.button.contains(event.target)) closeClipStatusMenu();
+    }, true);
+    window.addEventListener("scroll", (event) => {
+      if (!state.clipStatusMenu?.element.contains(event.target)) closeClipStatusMenu();
+    }, true);
+    window.addEventListener("resize", () => closeClipStatusMenu());
     window.addEventListener("keyup", onGlobalKeyUp, true);
     window.addEventListener("mouseup", onBboxMouseUp, true);
     window.addEventListener("blur", () => { state.samAcceptHeld = false; });

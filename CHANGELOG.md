@@ -7,6 +7,30 @@
 - Make **auto_load_img** follow the filter: download only matching frames, wait for unknown counts (also loaded for preloaded parts hidden by part search), keep downloaded images when the filter changes, skip parts without matching frames, re-select the two parts when the filter changes, and treat a part as complete once its filtered frames are Done.
 - Add browser coverage for count loading order and concurrency, part search scope, read failures, navigation, edits, label scope, preloader integration, and a 12,000-frame list.
 
+## 1.6.34 - 2026-10-22
+
+- Preserve the visible sidebar frame, clip, or part when Show done, Show in progress, or Show not checked inserts or removes content above the viewport. Avoid jumping to a different part when the current frame is off screen.
+- Keep deliberate frame navigation unchanged and add browser regression coverage for showing and hiding a completed part above the user's scroll position.
+
+## 1.6.33 - 2026-10-22
+
+- Count the current frame in Ctrl+B Change status previous/next ranges, then continue in the selected direction. Keep Label actions unchanged so copy, delete, and edge adjustment still exclude the source frame.
+- Update the status preview and add regression coverage for numeric and `end` ranges in both directions, hidden frames, and Label actions isolation.
+
+## 1.6.32 - 2026-10-22
+
+- Split Ctrl+B into Label actions and Change status tabs. Remember the last selected tab across reopening, labels, and page reloads; retain pending label operations when switching tabs.
+- Add bulk Not checked, In progress, and Done destinations for previous/next ranges or V-marked frames. Bound ranges to the complete active-label clip, include hidden/Done frames, skip unchanged statuses, and preserve annotations.
+- Allow V to mark any status for all labels. Keep marks available after status changes, include the current frame when explicitly marked, and clear selections on session/label changes.
+- Keep at most four concurrent saves, show progress, support partial-failure retries, and stop queued writes on context changes. Test tab persistence, range limits, mark reuse, status-only writes, copy/adjust behavior, and keyboard submission.
+
+## 1.6.31 - 2026-10-22
+
+- Replace Show only unfinished with three independent, remembered filters: Show done, Show in progress, and Show not checked. Combine them with part search and keep navigation/playback aligned with the filtered sequence.
+- Change each clip's status buttons into source-status menus. Hover or click Done, Not checked, or In progress, then choose one of the other two statuses. Change only matching frames in the complete current-label clip, including hidden frames; preserve other statuses and annotations.
+- Show source counts and save progress, support mouse and keyboard access, and keep menus accessible from sticky clip headers. Stop queued saves on errors or session/label/mode changes; retries process remaining source frames.
+- Test all filter combinations, all six transitions, hidden-frame scope, persistence, failures/retries, keyboard menus, sticky collapse, full-part Done controls, and playback.
+
 ## 1.6.30 - 2026-10-21
 
 - Fix midpoint edge adjustment on small boxes such as nose: after double-clicking top, bottom, left, or right, dragging is locked to that exact edge even when the native corner hit area overlaps it.

@@ -161,7 +161,8 @@ async def assert_retained(page, before):
 async def test_done_and_collapse(browser):
     page, fixture, errors = await setup(browser)
     before = await header_y(page)
-    await click_without_scrolling(page, CLIP + ' button[data-state="done"]')
+    await click_without_scrolling(page, CLIP + ' button[data-state="todo"]')
+    await page.locator('#nl-clip-status-menu button[data-target-state="done"]').click()
     await page.wait_for_function("Array.from({length:50},(_,i)=>fsGet(200+i)).every(s=>s==='done')")
     await page.wait_for_selector(CLIP + ' button[data-state="done"][aria-pressed="true"]')
     assert len(fixture.saves) == 50
@@ -197,7 +198,8 @@ async def test_pending_done(browser, failure=False):
     before = await header_y(page)
     fixture.gate.clear()
     fixture.fail = failure
-    await click_without_scrolling(page, CLIP + ' button[data-state="done"]')
+    await click_without_scrolling(page, CLIP + ' button[data-state="todo"]')
+    await page.locator('#nl-clip-status-menu button[data-target-state="done"]').click()
     await page.wait_for_selector(CLIP + ' [aria-busy="true"]')
     await click_without_scrolling(page, CLIP + " > summary", toggle=True)
     await assert_retained(page, before)

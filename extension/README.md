@@ -1,6 +1,6 @@
 # NOTA Labeling Organizer — usage guide
 
-**Version 1.6.30 · English**
+**Version 1.6.34 · English**
 
 For installation screenshots and the complete shortcut tables, see the [GitHub README](https://github.com/tanmainhat0502/dms_annotation_extension#readme).
 
@@ -19,11 +19,15 @@ For bbox labels, the **BBox** field below part search filters frames by exact bo
 
 To prevent accidental jumps, click the **padlock to the right of the bottom timeline**. A closed, gold lock blocks clicks and drags on the timeline; the progress display, `A` / `D`, `Space`, and sidebar frame selection still work. Click the lock again to allow timeline navigation. The timeline starts unlocked and remembers your choice after a page reload.
 
-Each clip has **Done**, **Not checked**, and **In progress** buttons that set the entire clip's status. A checkpoint marks the last edited frame. The list preserves its scroll position during edits and brings newly opened frames into view.
+Below the progress bar, tick **Show done**, **Show in progress**, and **Show not checked** to choose which frames appear. Any combination works; no choices shows an empty list. These choices combine with part search, apply to `A` / `D` and `Space`, and are remembered after reload. Filtering does not change saved statuses or the progress totals. When a filter inserts or removes content above the viewport, the visible frame, clip, or part stays at the same screen position.
+
+Each clip has **Done**, **Not checked**, and **In progress** source buttons. Hover over or click one, then choose either of the other statuses. For example, **Done → In progress** changes only that clip's Done frames; its other frames stay unchanged. The menu shows how many source frames exist, including frames hidden by filters. A button is disabled if no frames have that source status. Hovering or opening the menu does not save anything. Click a destination to save, or press `Esc` to close; keyboard users can open with `Enter`, `Space`, or an arrow key and select with the arrow keys.
+
+Status changes affect only the active label, preserve annotations, and send up to four requests at once. Errors stop new requests; retrying the same transition picks up frames still in the source status. Changing session, label, or mode stops queued requests. A checkpoint marks the last edited frame. The list preserves its scroll position during edits and brings newly opened frames into view.
 
 To set an entire part's status, use **Done all** below its frame count in the left column. Tick it to mark all frames **Done**; untick it to make all frames **In progress**. A dash means only some frames are Done. The count and checkbox stay visible while scrolling within that part.
 
-This action covers the current label's whole part, including closed clips and frames hidden by **Show only unfinished**. It pauses playback, shows saved/total progress, and saves up to four frames at a time. Other parts, labels, and annotations stay unchanged. A failed request stops further saves; successful saves remain. Switching session, label, or mode stops queued requests. When the unfinished filter hides a completed part, turn it off to reopen that part with the checkbox.
+This action covers the current label's whole part, including closed clips and frames hidden by status filters. It pauses playback, shows saved/total progress, and saves up to four frames at a time. Other parts, labels, and annotations stay unchanged. A failed request stops further saves; successful saves remain. Switching session, label, or mode stops queued requests. Enable **Show done** to see completed parts and reopen them with the checkbox.
 
 While you scroll through an expanded clip, its header stays below the search/image-loading toolbar. You can collapse the clip or use its status buttons without scrolling back to the beginning. The next clip's header takes its place as you scroll into that clip.
 
@@ -47,17 +51,32 @@ With a **BBox** filter, only frames the filter shows are downloaded and counted.
 
 ## Bulk actions: Ctrl+B
 
+The dialog has two tabs: **Label actions** and **Change status**. It remembers your last selected tab across closing, labels, and page reloads. Switching tabs does not apply an operation or discard your pending label edit. On macOS, use `Cmd+B`.
+
+### Label actions
+
 1. Edit or select an annotation in the source frame.
-2. Press `Ctrl+B` and choose what to apply.
+2. Press `Ctrl+B`, select **Label actions**, and choose what to apply.
 3. Choose **Previous frames** or **Next frames**.
 4. Enter a positive frame count, or `end` to reach the clip boundary.
 5. Check the preview, then click **Apply** or press `Enter`.
 
 The source frame is excluded from the count. Done targets are skipped; saved Not checked targets become In progress. Up to four saves run at a time. On an error, no new saves are started; earlier successful saves remain applied.
 
-For body/hand/eye boxes, `V` marks targets and the dialog offers **Marked frames**. These targets can span clips in the same session and label. On macOS, `Cmd+B` also opens the dialog.
+For body/hand/eye boxes, `V` marks targets and this tab offers **Marked frames**. These targets can span clips in the same session and label.
 
 `Esc` / **Cancel** discards the pending region; it does not undo edits already saved. A running bulk save cannot be canceled through this dialog.
+
+### Change status
+
+1. Open `Ctrl+B` and select **Change status**.
+2. Choose **Not checked**, **In progress**, or **Done** as the destination.
+3. Choose **Previous frames** / **Next frames** and a positive count or `end`, or choose **Marked frames** to use frames selected with `V`.
+4. Review the target count, then click **Apply** or press `Enter`.
+
+This tab changes only the active label's frame status. It works without source annotations and includes Done frames. Previous/next counts include the current frame, then continue in the selected direction through hidden frames in the complete current-label clip. They stop at the clip boundary even if the count is larger than the remaining range. Marked targets may span clips, include hidden frames, and include the current frame if you marked it.
+
+Existing annotations are preserved. Frames already at the destination status are not saved again. Up to four requests run at once; an error stops new requests and leaves successful saves intact. Retry to save the remaining frames. Session, label, or mode changes stop queued requests. Cancelling this tab does not discard a pending label edit.
 
 ## Bounding boxes
 
@@ -117,15 +136,11 @@ Select an eye and press `Ctrl+B`. Choose **Selected eye only** or **All eyes in 
 
 Drag an empty area inside the dashed eye box to move all 15 points. Hold `Ctrl` while dragging to rotate; drag edge or corner handles to resize. Dragging a point edits only that point. `K` hides or shows the eye points without deleting them.
 
-## Reopen Done frames
+## Mark frames with V
 
-For labels outside the body/hand/eye box marking workflow:
+For every label, `V` marks or unmarks the current frame, whether it is Done, In progress, or Not checked. Mark any frames in the same session and label, then use **Ctrl+B → Change status → Marked frames** and select a destination. To reopen Done frames, choose **In progress**.
 
-1. Open a Done frame and press `V` to select it; press `V` again to deselect.
-2. Repeat on any other Done frames in the same session and label, including other clips.
-3. Press `Ctrl+B`, then **Set In progress** or `Enter`.
-
-Existing masks and tags are preserved. **Clear selection** removes all selections. For body/hand/eye boxes, `V` marks bulk-edit targets instead; use `F` to reopen an individual Done frame.
+Marks remain after saving and when status filters hide the rows, so you can reuse the selection. Press `V` again or **Clear selection** to remove marks. Changing the session or label clears them. Body/hand/eye boxes also use the same marks in **Label actions**. `F` still toggles the current frame's Done / In progress status.
 
 ## Updates
 
