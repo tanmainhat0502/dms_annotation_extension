@@ -51,6 +51,7 @@ Reload your DMS tab and open **Labeling**. Search for a part, expand a clip such
 | Feature | How it works |
 | --- | --- |
 | Organize frames | Search part names, group frames by clip, and see frame counts and the last edited checkpoint. The clip header stays visible while scrolling; collapsing it keeps that header in view instead of jumping to another part. Navigation follows the filtered list. |
+| Filter by box count | For bbox labels, type exact counts such as `2,3,4` in **BBox** below part search to show only frames with that many boxes. **All** or an empty field shows every frame. Counts include saved edits and update after editing. `A` / `D`, `Space`, and **auto_load_img** follow the filtered frames. |
 | Lock the timeline | Click the padlock to the right of the bottom timeline. When locked, clicking or dragging the timeline cannot jump to another frame. `A` / `D`, `Space`, and sidebar frame selection still work. Click again to unlock; your choice is remembered after reload. |
 | Load images ahead | Click **auto_load_img** to download the current part and the next unfinished part in the background. See their combined image count; **Stop** pauses and keeps downloaded images. |
 | Set clip status | Click **Done**, **Not checked**, or **In progress** on a clip to apply that status to every frame in it. |
@@ -69,6 +70,8 @@ Reload your DMS tab and open **Labeling**. Search for a part, expand a clip such
 
 **Done all** affects the current label across the entire part, including collapsed clips and hidden Done frames. It shows save progress and sends at most four status requests at once. If a save fails, completed saves remain and the checkbox reflects the actual result. With **Show only unfinished** enabled, completed parts disappear; turn that filter off to untick and reopen one.
 
+**BBox filter:** counts come from auto-labels, which the filter reads per segment only while a count is entered: up to two requests at a time, starting at the current frame and limited to parts matching the part search. Each segment is read once per session and label. Frames whose auto-labels cannot be read stay visible and are reported as unknown. Done all and clip status buttons still cover every frame of the part or clip.
+
 ## Automatic image loading
 
 1. Open a frame in the part you are working on and click **auto_load_img** under the part search box.
@@ -84,6 +87,8 @@ Compressed images are stored in the browser's local IndexedDB storage, not kept 
 The loader allows up to three background requests per tab, with no fixed images-per-second limit. Actual speed depends on the server and connection. It pauses starting background requests while the viewer is fetching frames or saving frame status; requests already in progress may continue. Multiple users or tabs add to the server's load.
 
 The counter covers the active label's complete parts, including Done frames hidden by filters. It changes when the two-part window advances; the final part runs alone. Jumping outside the current pair while loading starts a new pair at that part. Stop first if you only want to inspect another part temporarily.
+
+With a **BBox** filter, the loader downloads only frames the filter shows, and the counter covers only those frames. Frames whose counts are still loading wait (`awaiting BBox counts`). A part counts as complete once all its filtered frames are Done. Changing the filter keeps already downloaded images.
 
 Switching sessions, labels, image size/quality, or leaving Labeling stops loading and clears this cache. Reloading the tab also starts fresh. Browser storage limits or network failures may stop/limit loading and are shown in the toolbar. Loading ahead reduces network waits; it cannot remove image decoding time or waits for other DMS data.
 

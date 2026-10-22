@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Restore the **BBox** exact-count filter below part search for bbox labels (`2,3,4`, **All**). Counts include saved edits and refresh after edits and Ctrl+B; `A` / `D` and `Space` follow the filtered frames, and a frame hidden after an edit resumes at its nearest visible neighbor.
+- Reduce filter load: read auto-labels only while a count is entered, at most two segments at a time, current frame first, limited to parts matching the part search, once per session and label. Cache per-frame counts, throttle list refreshes, and skip per-row work while the filter is off.
+- Make **auto_load_img** follow the filter: download only matching frames, wait for unknown counts (also loaded for preloaded parts hidden by part search), keep downloaded images when the filter changes, skip parts without matching frames, re-select the two parts when the filter changes, and treat a part as complete once its filtered frames are Done.
+- Add browser coverage for count loading order and concurrency, part search scope, read failures, navigation, edits, label scope, preloader integration, and a 12,000-frame list.
+
 ## 1.6.30 - 2026-10-21
 
 - Fix midpoint edge adjustment on small boxes such as nose: after double-clicking top, bottom, left, or right, dragging is locked to that exact edge even when the native corner hit area overlaps it.

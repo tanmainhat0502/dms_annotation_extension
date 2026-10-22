@@ -9,6 +9,7 @@
   const DATABASE = "nota-part-images-v1";
   const PARALLEL = 3;
   const REQUEST_TIMEOUT = 20000;
+  const FILTER_API = "__notaBboxFilterV1"; // Published by content.js.
   const rawFetch = window.fetch.bind(window); // Retain DMS authentication/CSRF handling.
   const tabId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   let ownerSequence = 0;
@@ -24,6 +25,8 @@
   let message = "";
   let timer = 0;
   let panel = null;
+  let filterRevision = null;
+  let windowRevision = null; // Filter revision the current two-part window was chosen with.
   const pending = new Map();
 
   const ready = () => typeof S !== "undefined" && S.mode === "label" && !!S.sess;
@@ -115,9 +118,44 @@
     return parts.findIndex((part) => part.frames.includes(g));
   }
 
+  // BBox filter verdict for frame g: true = fetch, false = filtered out,
+  // null = count still loading. Without the organizer every frame is wanted.
+  function wants(g) {
+    const filter = window[FILTER_API];
+    return filter ? filter.wants(g) : true;
+  }
+
+  function indexWanted(slot) {
+    slot.cursor = 0;
+    slot.wanted = new Set();
+    slot.waiting = 0;
+    for (const entry of slot.entries) {
+      const verdict = wants(entry.g);
+      if (verdict === true) slot.wanted.add(entry.url);
+      else if (verdict === null) slot.waiting++;
+    }
+  }
+
+  const currentFilterRevision = () => window[FILTER_API]?.revision ?? 0;
+
+  function syncFilter() {
+    const revision = currentFilterRevision();
+    if (revision === filterRevision) return;
+    filterRevision = revision;
+    for (const slot of slots) indexWanted(slot);
+  }
+
+  function countWanted(slot, urls) {
+    if (slot.wanted.size === slot.entries.length) return urls.size;
+    let count = 0;
+    for (const url of urls.keys()) if (slot.wanted.has(url)) count++;
+    return count;
+  }
+
   function partDone(part) {
+    // Frames hidden by the BBox filter never need to be Done for the window to advance.
     return typeof fsGet === "function" && part.frames.length > 0 &&
-      part.frames.every((g) => fsGet(g, scope.label) === "done");
+      part.frames.every((g) => fsGet(g, scope.label) === "done" || wants(g) === false);
   }
 
   function stopRequests(slot = null) {
@@ -167,6 +205,7 @@
   async function setWindow(index) {
     if (changing || !matchesScope()) return;
     changing = true;
+    windowRevision = currentFilterRevision();
     const expected = scope;
     try {
       // Completed parts need no preloading. Fill with the next two unfinished
@@ -182,11 +221,13 @@
       for (const part of wanted) {
         if (slots.some((slot) => slot.part === part)) continue;
         const entries = part.frames.map((g) => ({ g, url: frameURL(g) }));
-        slots.push({
+        const slot = {
           part, owner: `${tabId}-${++ownerSequence}`, alive: true, cursor: 0,
           entries, byURL: new Map(entries.map((entry) => [entry.url, entry])),
           cached: new Set(), failed: new Map()
-        });
+        };
+        indexWanted(slot);
+        slots.push(slot);
       }
       slots.sort((a, b) => parts.indexOf(a.part) - parts.indexOf(b.part));
       if (!slots.length) { running = false; message = "All remaining parts are Done."; }
@@ -271,11 +312,14 @@
     if (!running || changing || !matchesScope()) return;
     // Reserve bandwidth for navigation/decoding and annotation saves.
     if (statusWrites || S.inflight?.size) { schedule(); return; }
+    syncFilter();
     let active = [...pending.values()].filter((request) => !request.foreground).length;
     for (const slot of slots) {
       while (slot.cursor < slot.entries.length && active < PARALLEL) {
         const entry = slot.entries[slot.cursor++];
-        if (slot.cached.has(entry.url) || slot.failed.has(entry.url)) continue;
+        if (!slot.wanted.has(entry.url) || slot.cached.has(entry.url) || slot.failed.has(entry.url)) continue;
+        // A filter reindex rewinds the cursor; do not count live downloads twice.
+        if (pending.get(`${slot.owner}|${entry.url}`)?.controller.signal.aborted === false) continue;
         active++;
         load(slot, entry).catch((error) => {
           if (!slot.alive) return;
@@ -300,15 +344,18 @@
 
   function render() {
     if (!panel) return;
-    const total = slots.reduce((n, slot) => n + slot.entries.length, 0);
-    const loaded = slots.reduce((n, slot) => n + slot.cached.size, 0);
-    const failed = slots.reduce((n, slot) => n + slot.failed.size, 0);
+    syncFilter();
+    const total = slots.reduce((n, slot) => n + slot.wanted.size + slot.waiting, 0);
+    const loaded = slots.reduce((n, slot) => n + countWanted(slot, slot.cached), 0);
+    const failed = slots.reduce((n, slot) => n + countWanted(slot, slot.failed), 0);
+    const waiting = slots.reduce((n, slot) => n + slot.waiting, 0);
     const start = panel.querySelector(".nl-load-start");
     const stop = panel.querySelector(".nl-load-stop");
     start.disabled = running || changing || !ready();
     stop.disabled = !running;
     const status = running ? (loaded === total && total ? "Ready" : "Loading") : total ? "Stopped" : "Loaded";
-    const caption = `${status} ${loaded.toLocaleString()} / ${total.toLocaleString()} images${failed ? ` · ${failed} failed` : ""}`;
+    const caption = `${status} ${loaded.toLocaleString()} / ${total.toLocaleString()} images` +
+      `${failed ? ` · ${failed} failed` : ""}${waiting ? ` · ${waiting} awaiting BBox counts` : ""}`;
     const names = message || (slots.length ? slots.map((slot) => slot.part.name).join(" + ") : "Current part + next part");
     if (panel.querySelector(".nl-load-count").textContent !== caption) panel.querySelector(".nl-load-count").textContent = caption;
     if (panel.querySelector(".nl-load-parts").textContent !== names) panel.querySelector(".nl-load-parts").textContent = names;
@@ -392,8 +439,10 @@
         return;
       }
     }
-    if (slots.length && partDone(slots[0].part)) {
-      setWindow(parts.indexOf(slots[0].part) + 1);
+    // setWindow skips completed parts, so this also replaces a finished second part.
+    // A filter change can add or remove matching frames in parts outside the window.
+    if (slots.some((slot) => partDone(slot.part)) || currentFilterRevision() !== windowRevision) {
+      setWindow(slots.length ? parts.indexOf(slots[0].part) : lastPart);
       return;
     }
     schedule();

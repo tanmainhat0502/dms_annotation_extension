@@ -5,6 +5,10 @@
   const ROOT_ID = "nota-labeling-organizer-v1";
   const STYLE_ID = "nota-labeling-organizer-style-v1";
   const STORAGE_KEY = "nota-labeling-organizer-filter-v1";
+  const BBOX_FILTER_KEY = "nota-labeling-organizer-bbox-filter-v2";
+  const BBOX_FILTER_API = "__notaBboxFilterV1";
+  const BBOX_COUNT_PARALLEL = 2;
+  const BBOX_REFRESH_MS = 200;
   const TIMELINE_LOCK_KEY = "nota-labeling-organizer-timeline-lock-v1";
   const ALLOWED_ORIGINS = new Set([
     "https://ntt.dev.nota.ai",
@@ -43,6 +47,17 @@
     partScopes: new WeakMap(),
     input: null,
     status: null,
+    bboxInput: null,
+    bboxAllButton: null,
+    bboxStatus: null,
+    bboxFilter: readStoredBboxFilter(),
+    bboxActive: false,
+    bboxHiddenApplied: false,
+    bboxRevision: 0,
+    bboxCounts: null,
+    bboxLoad: null,
+    bboxRefreshTimer: 0,
+    bboxEditingInstalled: false,
     empty: null,
     observer: null,
     scheduled: false,
@@ -117,6 +132,29 @@
     } catch (_) {
       // The organizer still works when local storage is unavailable.
     }
+  }
+
+  function readStoredBboxFilter() {
+    try {
+      const value = JSON.parse(localStorage.getItem(BBOX_FILTER_KEY) || "null");
+      if (Array.isArray(value) && value.every((count) => Number.isSafeInteger(count) && count >= 0)) {
+        return [...new Set(value)];
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  function storeBboxFilter() {
+    try { localStorage.setItem(BBOX_FILTER_KEY, JSON.stringify(state.bboxFilter)); } catch (_) {}
+  }
+
+  // "2, 3;4" -> [2, 3, 4]; "" -> [] (all counts); malformed -> null.
+  function parseBboxCounts(value) {
+    const trimmed = value.trim().replace(/[\s,;]+$/, "");
+    if (!trimmed) return value.trim() ? null : [];
+    if (!/^\d+(?:[\s,;]+\d+)*$/.test(trimmed)) return null;
+    const counts = [...new Set(trimmed.split(/[\s,;]+/).map(Number))];
+    return counts.every(Number.isSafeInteger) ? counts : null;
   }
 
   function ensureTimelineLock() {
@@ -222,6 +260,7 @@
       #nl-timeline-lock[aria-pressed="true"] { color: #ffd278; border-color: #a98136; background: #352d1e; }
       #${ROOT_ID} {
         display: flex;
+        flex-wrap: wrap;
         flex-shrink: 0;
         align-items: center;
         gap: 6px;
@@ -277,6 +316,50 @@
         text-align: right;
         white-space: nowrap;
       }
+      #${ROOT_ID} .nl-bbox-controls {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        flex: 0 0 100%;
+        min-width: 0;
+        font-size: 11px;
+        color: #cbd5e1;
+      }
+      #${ROOT_ID} .nl-bbox-controls input {
+        box-sizing: border-box;
+        width: 94px;
+        height: 27px;
+        padding: 3px 5px;
+        border: 1px solid #606978;
+        border-radius: 4px;
+        background: #11141a;
+        color: #f4f6fa;
+        font: inherit;
+      }
+      #${ROOT_ID} .nl-bbox-controls input[aria-invalid="true"] { border-color: #ff6b78; }
+      #${ROOT_ID} .nl-bbox-all {
+        flex: none;
+        height: 27px;
+        padding: 3px 6px;
+        border: 1px solid #606978;
+        border-radius: 4px;
+        background: #242a33;
+        color: #dce4ee;
+        font: inherit;
+        cursor: pointer;
+      }
+      #${ROOT_ID} .nl-bbox-all[aria-pressed="true"] { border-color: #55aaff; color: #d9f3ff; background: #17384c; }
+      #${ROOT_ID} .nl-bbox-controls :disabled { opacity: .5; cursor: default; }
+      #${ROOT_ID} .nl-bbox-status {
+        flex: 1;
+        min-width: 0;
+        text-align: right;
+        color: #aeb9c8;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #labList .nl-clip[hidden], #labList li[data-g][hidden] { display: none !important; }
       #labList .nl-organized > .nl-clips {
         flex: 1;
         min-width: 0;
@@ -590,11 +673,22 @@
         <button class="nl-clear" type="button" title="Clear search" aria-label="Clear search">×</button>
       </div>
       <span class="nl-status" aria-live="polite"></span>
+      <div class="nl-bbox-controls">
+        <label for="nl-bbox-counts">BBox</label>
+        <input id="nl-bbox-counts" type="search" inputmode="numeric" autocomplete="off" spellcheck="false"
+          aria-label="Exact BBox counts, separated by commas" placeholder="2,3,4">
+        <button class="nl-bbox-all" type="button" title="Show all BBox counts" aria-pressed="true">All</button>
+        <span class="nl-bbox-status" aria-live="polite"></span>
+      </div>
     `;
 
     state.input = toolbar.querySelector(".nl-search");
     state.status = toolbar.querySelector(".nl-status");
+    state.bboxInput = toolbar.querySelector("#nl-bbox-counts");
+    state.bboxAllButton = toolbar.querySelector(".nl-bbox-all");
+    state.bboxStatus = toolbar.querySelector(".nl-bbox-status");
     state.input.value = state.filter;
+    state.bboxInput.value = state.bboxFilter.join(",");
 
     state.input.addEventListener("input", () => {
       state.filter = state.input.value;
@@ -614,6 +708,31 @@
       state.input.value = "";
       state.input.dispatchEvent(new Event("input", { bubbles: true }));
       state.input.focus();
+    });
+
+    state.bboxInput.addEventListener("input", () => {
+      const counts = parseBboxCounts(state.bboxInput.value);
+      state.bboxInput.setAttribute("aria-invalid", String(counts === null));
+      if (counts === null) {
+        state.bboxStatus.textContent = "Use 2,3,4";
+        return;
+      }
+      state.bboxFilter = counts;
+      storeBboxFilter();
+      applyFilter();
+    });
+    state.bboxInput.addEventListener("blur", () => {
+      if (state.bboxInput.getAttribute("aria-invalid") !== "true") return;
+      state.bboxInput.value = state.bboxFilter.join(",");
+      state.bboxInput.setAttribute("aria-invalid", "false");
+      applyFilter();
+    });
+    state.bboxAllButton.addEventListener("click", () => {
+      state.bboxInput.value = "";
+      state.bboxInput.setAttribute("aria-invalid", "false");
+      state.bboxFilter = [];
+      storeBboxFilter();
+      applyFilter();
     });
 
     return toolbar;
@@ -673,21 +792,52 @@
     if (cached && cached.session === S.sess && cached.generation === S.gen &&
         cached.label === S.labelSel && cached.sequence === S.lseq &&
         cached.all.rows[0]?.isConnected) return cached;
-    const rows = Array.from(state.list.querySelectorAll(".grp.nl-organized li[data-g]"));
+    const rows = [];
+    const visibleRows = [];
+    const ranks = [];
+    for (const group of state.list.querySelectorAll(":scope > .grp.nl-organized")) {
+      for (const li of group.querySelectorAll("li[data-g]")) {
+        ranks.push(visibleRows.length);
+        rows.push(li);
+        if (!group.hidden && !li.hidden) visibleRows.push(li);
+      }
+    }
     if (!rows.length) return null;
     const index = (list) => ({ rows: list, positions: new Map(list.map((li, i) => [Number(li.dataset.g), i])) });
     state.navigation = {
       session: S.sess, generation: S.gen, label: S.labelSel, sequence: S.lseq,
-      all: index(rows), visible: index(rows.filter((li) => !li.closest(".grp").hidden)),
+      all: index(rows), visible: index(visibleRows),
+      // ranks[i]: visible rows before rows[i]; used only while the BBox filter hides rows.
+      ranks: state.bboxActive ? ranks : null,
       current: rows.find((li) => li.classList.contains("cur")) || null
     };
     return state.navigation;
   }
 
-  function organizedNavigationAt(g) {
+  // Row reached by moving `step` (non-zero) from frame g: { rows, index }, or
+  // null when g is not in the organized list. index is -1 when no row lies in
+  // the travel direction.
+  function organizedNavigationTarget(g, step) {
     const navigation = organizedNavigationIndex();
     if (!navigation) return null;
-    return navigation.visible.positions.has(g) ? navigation.visible : navigation.all;
+    const { visible, all, ranks } = navigation;
+    let rows = visible.rows;
+    let target;
+    if (visible.positions.has(g)) {
+      target = visible.positions.get(g) + step;
+    } else if (ranks && all.positions.has(g)) {
+      // A frame hidden by the BBox filter resumes at its nearest visible
+      // neighbor in the travel direction instead of leaving the filtered list.
+      const before = ranks[all.positions.get(g)];
+      if (step > 0 ? before >= rows.length : before === 0) return { rows, index: -1 };
+      target = step > 0 ? before + step - 1 : before + step;
+    } else if (all.positions.has(g)) {
+      rows = all.rows;
+      target = all.positions.get(g) + step;
+    } else {
+      return null;
+    }
+    return { rows, index: rows.length ? Math.max(0, Math.min(rows.length - 1, target)) : -1 };
   }
 
   function navigateOrganizedFrames(direction, amount = 1) {
@@ -695,20 +845,21 @@
     const navigation = organizedNavigationIndex();
     if (!navigation) return false;
     const active = navigation.all.positions.has(S.g) ? S.g : S.shownG;
-    const { rows, positions } = organizedNavigationAt(active);
-    const index = positions.get(active);
-    if (index === undefined) return false;
-    const nextIndex = Math.max(0, Math.min(rows.length - 1, index + Math.sign(direction) * Math.max(1, amount)));
-    if (nextIndex === index) return true;
+    const sign = Math.sign(direction);
+    const cursor = organizedNavigationTarget(active, sign * Math.max(1, amount));
+    if (!cursor) return false;
+    if (cursor.index < 0) return true;
+    const { rows, index: nextIndex } = cursor;
     const next = Number(rows[nextIndex].dataset.g);
     if (!Number.isInteger(next)) return false;
+    if (next === active) return true;
     try { if (typeof pause === "function") pause(); } catch (_) {}
     show(next);
     // Warm a few following frames, using the same cache as the native player.
     // The two-part preloader supplies compressed local images when available.
     if (typeof getFrame === "function" && typeof fkey === "function" && S.inflight && S.frames) {
       for (let offset = 1; offset <= 3 && S.inflight.size < 4; offset++) {
-        const row = rows[nextIndex + Math.sign(direction) * offset];
+        const row = rows[nextIndex + sign * offset];
         if (!row) break;
         const g = Number(row.dataset.g);
         if (!S.frames.has(fkey(g))) getFrame(g).catch(() => {});
@@ -724,13 +875,10 @@
       if (!pageLabelingReady()) return nativePlayNext.apply(this, arguments);
       // The player asks for this once per displayed frame and repeatedly for
       // lookahead. Index the list once, not once per prefetch candidate.
-      const navigation = organizedNavigationAt(g);
-      const index = navigation?.positions.get(g);
-      if (index === undefined) return nativePlayNext.apply(this, arguments);
-      const rows = navigation.rows;
-      const distance = Math.max(1, Math.abs(Number(step) || 1));
-      const nextIndex = Math.min(rows.length - 1, index + distance);
-      const next = Number(rows[nextIndex].dataset.g);
+      const cursor = organizedNavigationTarget(g, Math.max(1, Math.abs(Number(step) || 1)));
+      if (!cursor) return nativePlayNext.apply(this, arguments);
+      if (cursor.index < 0) return g;
+      const next = Number(cursor.rows[cursor.index].dataset.g);
       return Number.isInteger(next) ? next : nativePlayNext.apply(this, arguments);
     };
     state.organizedPlaybackInstalled = true;
@@ -808,6 +956,18 @@
     ctx.fillStyle = "#fff";
     ctx.fillText(text, x + paddingX, y + paddingY);
     ctx.restore();
+  }
+
+  function ensureBboxEditing() {
+    if (state.bboxEditingInstalled || typeof edSave !== "function") return;
+    const nativeSave = edSave;
+    edSave = function (...args) {
+      const result = nativeSave.apply(this, args);
+      scheduleBboxFilterRefresh();
+      if (result instanceof Promise) result.then(scheduleBboxFilterRefresh, scheduleBboxFilterRefresh);
+      return result;
+    };
+    state.bboxEditingInstalled = true;
   }
 
   function ensureLabelVisibility() {
@@ -3619,6 +3779,7 @@
     });
     if (S.gen !== expectedGeneration) throw new Error("The session has changed");
     (S.ledits[key] = S.ledits[key] || {})[label] = savedItems;
+    scheduleBboxFilterRefresh();
     if (frameState(g) === "todo") await saveFrameState(g, label, "wip", expectedGeneration);
   }
 
@@ -4680,6 +4841,12 @@
 
   function restoreNativeGroups() {
     if (!state.list) return;
+    clearTimeout(state.bboxRefreshTimer);
+    state.bboxRefreshTimer = 0;
+    if (state.bboxActive) state.bboxRevision += 1;
+    state.bboxActive = false;
+    state.bboxHiddenApplied = false;
+    cancelBboxLoads();
     state.applying = true;
     try {
       for (const row of state.list.querySelectorAll(":scope > .grp.nl-organized")) {
@@ -4690,6 +4857,7 @@
           li.querySelectorAll(".nl-checkpoint").forEach((marker) => marker.remove());
           li.querySelectorAll(".nl-frame-mark").forEach((marker) => marker.remove());
           li.classList.remove("nl-marked-frame");
+          li.hidden = false;
           ul.appendChild(li);
         }
         clips.replaceWith(ul);
@@ -4718,29 +4886,243 @@
     }
   }
 
+  function bboxFilterSupported() {
+    return pageLabelingReady() && BBOX_LABELS.has(S.labelSel);
+  }
+
+  // Count state for the current session/generation/label. Auto-labels do not
+  // change within a scope, so their per-frame counts are computed only once.
+  function bboxCountCache() {
+    const cache = state.bboxCounts;
+    if (cache && cache.session === S.sess && cache.generation === S.gen && cache.label === S.labelSel) return cache;
+    state.bboxCounts = {
+      session: S.sess, generation: S.gen, label: S.labelSel,
+      auto: new Map(), // g -> auto-label box count
+      empty: new Set(), // segments without auto-labels
+      failed: new Set() // segments whose auto-labels could not be read
+    };
+    return state.bboxCounts;
+  }
+
+  function countValidBoxes(items) {
+    if (!Array.isArray(items)) return 0;
+    let count = 0;
+    for (const item of items) {
+      if (Array.isArray(item?.box) && item.box.length >= 4 &&
+          item.box.slice(0, 4).every((value) => Number.isFinite(Number(value)))) count += 1;
+    }
+    return count;
+  }
+
+  function frameSegment(g) {
+    try { return loc(g)[0]; } catch (_) { return null; }
+  }
+
+  // Box count of frame g, or null until its segment's auto-labels are read.
+  // A saved edit, including an explicit empty list, wins over auto-labels.
+  function bboxCountForFrame(g, cache) {
+    try {
+      const edited = S.ledits?.[rvKey(g)]?.[cache.label];
+      if (Array.isArray(edited)) return countValidBoxes(edited);
+      const known = cache.auto.get(g);
+      if (known !== undefined) return known;
+      const [segmentIndex, frameIndex] = loc(g);
+      const data = S.al?.get(segmentIndex);
+      if (!data || data instanceof Promise) return cache.empty.has(segmentIndex) ? 0 : null;
+      const frame = data.frames?.[String(frameIndex)];
+      const count = frame && typeof alBoxes === "function" ? countValidBoxes(alBoxes(frame, cache.label)) : 0;
+      cache.auto.set(g, count);
+      return count;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // preload.js contract: true = fetch the image, false = filtered out,
+  // null = count still loading. Unreadable counts stay visible, so fetch them.
+  function bboxFilterWants(g) {
+    if (!state.bboxActive) return true;
+    const cache = state.bboxCounts;
+    if (!cache || cache.session !== S.sess || cache.generation !== S.gen || cache.label !== S.labelSel) return null;
+    const count = bboxCountForFrame(g, cache);
+    if (count !== null) return state.bboxFilter.includes(count);
+    const segment = frameSegment(g);
+    if (cache.failed.has(segment)) return true;
+    if (segment !== null) requestExtraBboxSegment(cache, segment);
+    return null;
+  }
+
+  function bboxLoadFor(cache) {
+    if (state.bboxLoad?.cache !== cache) {
+      state.bboxLoad = { cache, queue: [], extra: new Set(), started: new Set(), running: 0, completed: 0 };
+    }
+    return state.bboxLoad;
+  }
+
+  // Each filter pass replaces the queue, so loading follows the current frame
+  // and part search. Segments already requested in this scope are not repeated.
+  function requestBboxSegments(cache, order) {
+    const load = bboxLoadFor(cache);
+    load.queue = [...new Set([...order, ...load.extra])].filter((segment) => !load.started.has(segment));
+    pumpBboxLoads(load);
+  }
+
+  // The preloader also needs counts for frames outside the listed rows (parts
+  // hidden by search, Done rows hidden natively). Load them after listed rows.
+  function requestExtraBboxSegment(cache, segment) {
+    const load = bboxLoadFor(cache);
+    if (load.extra.has(segment) || load.started.has(segment)) return;
+    load.extra.add(segment);
+    load.queue.push(segment);
+    pumpBboxLoads(load);
+  }
+
+  function pumpBboxLoads(load) {
+    while (state.bboxLoad === load && load.running < BBOX_COUNT_PARALLEL && load.queue.length) {
+      const segment = load.queue.shift();
+      load.started.add(segment);
+      load.running += 1;
+      loadAutoLabel(segment).catch((error) => {
+        console.warn("[NOTA Labeling Organizer] Could not load BBox counts for segment", segment, error);
+      }).then(() => {
+        const { cache } = load;
+        const data = S.al?.get(segment);
+        if (cache.session !== S.sess || cache.generation !== S.gen || (data && !(data instanceof Promise))) return;
+        (S.sess.segments?.[segment]?.al ? cache.failed : cache.empty).add(segment);
+      }).finally(() => {
+        load.running -= 1;
+        load.completed += 1;
+        if (state.bboxLoad !== load) return;
+        scheduleBboxFilterRefresh();
+        pumpBboxLoads(load);
+      });
+    }
+  }
+
+  function cancelBboxLoads() {
+    if (state.bboxLoad) state.bboxLoad.queue = [];
+    state.bboxLoad = null;
+  }
+
+  // Throttled rather than debounced, so a stream of loaded segments or saves
+  // still updates the list every BBOX_REFRESH_MS.
+  function scheduleBboxFilterRefresh() {
+    if (state.bboxRefreshTimer || !state.bboxActive) return;
+    state.bboxRefreshTimer = setTimeout(refreshBboxFilter, BBOX_REFRESH_MS);
+  }
+
+  function refreshBboxFilter() {
+    state.bboxRefreshTimer = 0;
+    if (!pageLabelingReady()) return;
+    const position = captureSidebarPosition();
+    state.applying = true;
+    try {
+      applyFilter();
+      if (position) restoreSidebarPosition(position);
+    } finally {
+      state.observer?.takeRecords();
+      state.applying = false;
+    }
+  }
+
   function applyFilter() {
     state.navigation = null;
     if (!state.list || !state.status) return;
     const query = normalize(state.filter);
     const rows = Array.from(state.list.querySelectorAll(":scope > .grp"));
+    const supported = bboxFilterSupported();
+    const active = supported && state.bboxFilter.length > 0;
+    if (active || state.bboxActive) state.bboxRevision += 1;
+    state.bboxActive = active;
+    // Frame rows are visited only while the BBox filter applies, plus one pass to unhide them.
+    const touchFrames = active || state.bboxHiddenApplied;
+    state.bboxHiddenApplied = active;
+    const cache = active ? bboxCountCache() : null;
     let visible = 0;
+    let totalFrames = 0;
+    let visibleFrames = 0;
+    let unknownFrames = 0;
+    // Segments with unknown counts in list order, split at the current frame.
+    const queued = new Set();
+    const behind = [];
+    const ahead = [];
+    let passedCurrent = false;
+    let currentSegment = null;
 
     for (const row of rows) {
       const partName = row.dataset.partName || row.querySelector(":scope > .vlab")?.textContent || "";
       const matched = !query || normalize(partName).includes(query);
-      row.hidden = !matched;
-      if (matched) visible += 1;
+      let partVisible = !active;
+      if (touchFrames && (matched || !active)) {
+        const clips = row.querySelectorAll(":scope > .nl-clips > .nl-clip");
+        if (!clips.length) partVisible = true;
+        for (const clip of clips) {
+          let clipVisible = false;
+          for (const li of clip.querySelectorAll("li[data-g]")) {
+            let keep = true;
+            if (active) {
+              const g = Number(li.dataset.g);
+              const isCurrent = li.classList.contains("cur");
+              if (isCurrent) passedCurrent = true;
+              const count = bboxCountForFrame(g, cache);
+              totalFrames += 1;
+              if (count === null) {
+                unknownFrames += 1;
+                const segment = frameSegment(g);
+                if (isCurrent) currentSegment = segment;
+                if (segment !== null && !cache.failed.has(segment) && !queued.has(segment)) {
+                  queued.add(segment);
+                  (passedCurrent ? ahead : behind).push(segment);
+                }
+              } else {
+                keep = state.bboxFilter.includes(count);
+              }
+              if (keep) visibleFrames += 1;
+            }
+            if (li.hidden === keep) li.hidden = !keep;
+            if (keep) clipVisible = true;
+          }
+          if (clip.hidden === clipVisible) clip.hidden = !clipVisible;
+          if (clipVisible) partVisible = true;
+        }
+      }
+      const hidePart = !matched || !partVisible;
+      if (row.hidden !== hidePart) row.hidden = hidePart;
+      if (!hidePart) visible += 1;
     }
 
-    const caption = query ? `${visible}/${rows.length} part` : `${rows.length} part`;
+    if (active) {
+      const order = currentSegment !== null && behind.includes(currentSegment)
+        ? [currentSegment, ...ahead, ...behind.filter((segment) => segment !== currentSegment)]
+        : [...ahead, ...behind];
+      requestBboxSegments(cache, order);
+    } else {
+      cancelBboxLoads();
+    }
+
+    const caption = query || active ? `${visible}/${rows.length} part` : `${rows.length} part`;
     if (state.status.textContent !== caption) state.status.textContent = caption;
+
+    const invalid = state.bboxInput.getAttribute("aria-invalid") === "true";
+    state.bboxInput.disabled = !supported;
+    state.bboxAllButton.disabled = !supported;
+    state.bboxAllButton.setAttribute("aria-pressed", String(!state.bboxFilter.length));
+    const load = state.bboxLoad;
+    const pending = load ? load.queue.length + load.running : 0;
+    const bboxCaption = !supported ? "Unavailable for this label" : invalid ? "Use 2,3,4" : !active ? "" :
+      `${visibleFrames}/${totalFrames} frames` +
+      (pending ? ` · loading ${load.completed}/${load.completed + pending}` :
+        unknownFrames ? ` · ${unknownFrames} unknown` : "");
+    if (state.bboxStatus.textContent !== bboxCaption) state.bboxStatus.textContent = bboxCaption;
+    state.bboxStatus.title = bboxCaption;
 
     if (!state.empty) {
       state.empty = document.createElement("div");
       state.empty.className = "nl-empty-filter";
-      state.empty.textContent = "No matching parts.";
     }
-    const shouldShowEmpty = Boolean(query && rows.length && !visible);
+    const emptyMessage = active ? "No frames match the BBox filter." : "No matching parts.";
+    if (state.empty.textContent !== emptyMessage) state.empty.textContent = emptyMessage;
+    const shouldShowEmpty = Boolean((query || active) && rows.length && !visible);
     if (shouldShowEmpty && !state.empty.isConnected) state.list.prepend(state.empty);
     else if (!shouldShowEmpty && state.empty.isConnected) state.empty.remove();
   }
@@ -4766,6 +5148,7 @@
     ensureStatusRendering();
     ensureOrganizedPlayback();
     ensureNativeEditing();
+    ensureBboxEditing();
     ensureLabelVisibility();
     ensureEyeGroupDragging();
     ensureEyeTransformDrawing();
@@ -4820,6 +5203,7 @@
     ensureStatusRendering();
     ensureOrganizedPlayback();
     ensureNativeEditing();
+    ensureBboxEditing();
     ensureLabelVisibility();
     ensureEyeGroupDragging();
     ensureEyeTransformDrawing();
@@ -4830,6 +5214,10 @@
     ensurePolygonTools();
     ensureBulkDialog();
     ensureEyeBulkDialog();
+    window[BBOX_FILTER_API] = {
+      get revision() { return state.bboxRevision; },
+      wants: bboxFilterWants
+    };
 
     window.addEventListener("keydown", onGlobalKeyDown, true);
     window.addEventListener("keyup", onGlobalKeyUp, true);

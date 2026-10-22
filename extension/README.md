@@ -15,6 +15,8 @@ For installation screenshots and the complete shortcut tables, see the [GitHub R
 
 Playback reuses the frame-list index and updates only the previous/current rows to reduce stuttering on large lists, including when images are cached. Filter, label, session, and list changes refresh this index automatically.
 
+For bbox labels, the **BBox** field below part search filters frames by exact box count for the selected label. Enter `2,3,4` to show frames with exactly 2, 3, or 4 boxes; click **All** or clear the field to show every frame. Counts include saved edits and refresh after an edit or Ctrl+B. `A` / `D` and `Space` follow the filtered frames. The filter reads auto-labels only while a count is entered, at most two segments at a time, starting at the current frame and limited to parts matching the search. Frames whose auto-labels cannot be read stay visible and are reported as unknown.
+
 To prevent accidental jumps, click the **padlock to the right of the bottom timeline**. A closed, gold lock blocks clicks and drags on the timeline; the progress display, `A` / `D`, `Space`, and sidebar frame selection still work. Click the lock again to allow timeline navigation. The timeline starts unlocked and remembers your choice after a page reload.
 
 Each clip has **Done**, **Not checked**, and **In progress** buttons that set the entire clip's status. A checkpoint marks the last edited frame. The list preserves its scroll position during edits and brings newly opened frames into view.
@@ -40,6 +42,8 @@ Images are stored compressed in local browser storage; background loading does n
 The three-request background limit applies per tab; there is no fixed images-per-second limit. Speed and server load depend on the connection, server capacity, and number of users or tabs loading images.
 
 The pair uses the complete parts for the current label, even when the sidebar is filtered or Done frames are hidden. Changing session, label, image size/quality, leaving Labeling, or reloading the tab clears the preloader's cache. No annotation data is changed by preloading.
+
+With a **BBox** filter, only frames the filter shows are downloaded and counted. Frames whose counts are still loading wait until they are known. A part is complete for loading once all its filtered frames are Done. Changing the filter keeps already downloaded images.
 
 ## Bulk actions: Ctrl+B
 
