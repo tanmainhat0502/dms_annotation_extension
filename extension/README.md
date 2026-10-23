@@ -1,6 +1,6 @@
 # NOTA Labeling Organizer — usage guide
 
-**Version 1.6.37 · English**
+**Version 1.6.38 · English**
 
 For installation screenshots and the complete shortcut tables, see the [GitHub README](https://github.com/tanmainhat0502/dms_annotation_extension#readme).
 

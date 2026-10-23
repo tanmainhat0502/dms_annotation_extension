@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.6.38 - 2026-10-23
 
 - Add **⚠ Warn** BBox error warning filter (`bbox-warn.js`): loads session auto-labels (`<= 2` concurrent segments), evaluates 4-layer session + clip anomaly rules (`dup`, `tiny`, `size`, `ratio`, `pos`, `jump`, `count`, `drift`) while respecting the multi-box `body` convention, and filters the sidebar to flagged frames with `.nl-warn-badge` reason badges. Navigation (`A` / `D`, `Space`), `C`, `Ctrl+B`, **Done all**, and **auto_load_img** operate strictly on the listed warning frames.
 - Restore toolbar **Done all** and scope sidebar actions to active filters: after confirmation, **Done all** marks every unfinished frame currently listed in the sidebar Done (collapsed clips included), waiting for the listed frames' BBox counts to load and skipping unknown counts. While a BBox filter is entered, part **Done all**, clip status buttons, `Ctrl+B`, and `C` apply only to the filtered frames shown in the sidebar; when **BBox** is empty, they apply to all frames.

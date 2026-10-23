@@ -2,7 +2,7 @@
 
 A Chrome extension for faster annotation in **DMS Labeling**. Group frames by clip, edit labels with keyboard shortcuts, and repeat changes across multiple frames.
 
-**Version 1.6.37 · English**
+**Version 1.6.38 · English**
 
 [Download the latest release](https://github.com/tanmainhat0502/dms_annotation_extension/releases/latest) · [Detailed usage guide](extension/README.md) · [Changelog](CHANGELOG.md)
 

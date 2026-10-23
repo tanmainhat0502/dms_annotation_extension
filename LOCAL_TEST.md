@@ -1,16 +1,17 @@
-# Manual testing: 1.6.37
+# Manual testing: 1.6.38
 
 Use this checklist to verify cached playback, the timeline lock, bbox editing, sticky clip controls, and image preloading in your DMS environment.
 
 ## Install
 
-1. Extract `dist/NOTA_Labeling_Organizer_Extension_v1.6.37.zip`, or use this repository's `extension` folder.
+1. Extract `dist/NOTA_Labeling_Organizer_Extension_v1.6.38.zip`, or use this repository's `extension` folder.
 2. In `chrome://extensions`, disable the older Organizer version. Click **Load unpacked** and select the folder containing `manifest.json`.
 3. Reload the DMS tab. Open **Labeling**, choose a label, and open a frame.
 4. Find **auto_load_img** and **Stop** directly below the part search field.
 
 ## Review checklist
 
+- Click **⚠ Warn** next to **All** on a bbox label: verify it scans all session segments (up to 2 concurrent requests), displays only flagged frames with `.nl-warn-badge` reason badges (`dup`, `tiny`, `size`, `ratio`, `pos`, `jump`, `count`, `drift`), and keeps normal multi-box `body` frames out of the warning list unless they flicker/drop out or violate geometry rules. Verify `A` / `D`, `Space`, `C`, `Ctrl+B`, **Done all**, and **auto_load_img** operate strictly on the listed warning frames.
 - In **BBox**, enter `2,3,4`, then try `0` and **All**. Combine the box-count filter with part search and status filters. `A` / `D` and `Space` must visit only matching frames, including when the current frame becomes hidden after an edit or filter change. With auto_load_img Ready, play with Space and check the even cadence. Change the BBox filter and verify the image counter/preloaded parts follow the new selection.
 - Open `Ctrl+B`: verify **Label actions** and **Change status** tabs. Select either tab, close with Esc, reopen, and reload DMS: the same tab must remain selected. Switching tabs must not discard a pending box-edge/mask operation. Return to Label actions before testing copy/delete/adjust below.
 - In Change status, test Not checked, In progress, and Done with previous/next frame counts, `end`, and a count larger than the clip. The count must include the current frame, then continue in the selected direction. Only the active label in that clip should change. Hidden/Done frames are eligible, unchanged targets cause no extra saves, and annotation data stays unchanged. Label actions must still exclude the source frame.
