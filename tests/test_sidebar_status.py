@@ -65,6 +65,9 @@ async def clip_meta(page, g):
 
 async def test_status_repaint_is_incremental(browser):
     page, _, errors = await open_page(browser, 12000, 6000)
+    # Grouping shortens the list after show(); bring the current row back into view so the
+    # measurement covers the repaint, not the off-screen sidebar-anchor scan.
+    await page.evaluate("document.querySelector('#labList li.cur').scrollIntoView({block: 'center'})")
     await page.evaluate("fsRender()")  # Warm-up: the first patched render fills the row cache.
 
     result = await page.evaluate(COUNT_QUERIES, 6010)

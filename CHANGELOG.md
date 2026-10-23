@@ -2,8 +2,11 @@
 
 ## Unreleased
 
-- Speed up status changes on long sidebars: repaint only rows whose status or edit mark changed and refresh only their clips (about 52 ms to 5 ms per change at 12,000 frames). V markers update only the toggled frames instead of every row.
+- Restore toolbar **Done all** and scope sidebar actions to active filters: after confirmation, **Done all** marks every unfinished frame currently listed in the sidebar Done (collapsed clips included), waiting for the listed frames' BBox counts to load and skipping unknown counts. While a BBox filter is entered, part **Done all**, clip status buttons, `Ctrl+B`, and `C` apply only to the filtered frames shown in the sidebar; when **BBox** is empty, they apply to all frames.
+- Show BBox count progress below the **BBox** row while a filter is entered: counted/total listed frames, matches, loaded segments, and unknown counts.
+- Speed up status changes on long sidebars: repaint only rows whose status or edit mark changed and refresh only their clips (about 52 ms to 5 ms per change at 12,000 frames while the current frame is in view). V markers update only the toggled frames instead of every row.
 - Seatbelt Ctrl+B mask copy skips target frames whose mask would not change, so they are not re-saved or switched to In progress.
+- Speed up **auto_load_img** (7.3 s → 3.7 s for 120 frames at 100 ms server latency in a local browser benchmark): start the next download as soon as one finishes instead of waiting 50 ms after the last of each batch, use 4 parallel requests on HTTP/1.1 or 6 on HTTP/2/3, and keep one background request while the viewer loads frames. Download from the open frame onward, then earlier frames, with Done frames last.
 
 ## 1.6.37 - 2026-10-22
 

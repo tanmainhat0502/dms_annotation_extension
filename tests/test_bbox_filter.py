@@ -60,6 +60,7 @@ class Server:
         self.active = 0
         self.peak = 0
         self.fail = set()
+        self.posts = []  # Frame status saves: (g, label, state).
         self.hold = asyncio.Event()
         self.hold.set()
 
@@ -87,6 +88,10 @@ class Server:
         elif url.path == "/api/frame":
             self.images.append((args["seg"][0], int(args["i"][0])))
             await route.fulfill(body=PNG, content_type="image/png")
+        elif url.path == "/api/frame_status":
+            data = route.request.post_data_json
+            self.posts.append((int(data["seg"][1:]) * SEGMENT + data["i"], data["label"], data["state"]))
+            await route.fulfill(json={})
         else:
             raise AssertionError(f"Unexpected request: {route.request.method} {url.path}")
 
@@ -334,6 +339,112 @@ async def test_auto_load_window_follows_filter(browser):
     print("PASS: auto_load_img window skips parts without matches and follows filter changes")
 
 
+async def done_all(page, server, expected_posts):
+    """Click toolbar Done all, accept the confirmation, wait for the saves; returns the dialog text."""
+    messages = []
+
+    async def accept(dialog):
+        messages.append(dialog.message)
+        await dialog.accept()
+
+    page.once("dialog", accept)
+    start = len(server.posts)
+    await page.click(".nl-done-all")
+    await page.wait_for_function("document.querySelector('.nl-done-all').textContent === 'Done all'")
+    assert len(server.posts) - start == expected_posts, (len(server.posts) - start, expected_posts)
+    return messages[0]
+
+
+async def test_done_all_sidebar(browser):
+    # No filter: every unfinished frame of the label, in every part and clip.
+    page, server, errors = await open_page(browser, count=40, current=0)
+    await page.evaluate("S.fstat[rvKey(3)]={body:{s:'done'}}")
+    await done_all(page, server, 39)
+    assert sorted(g for g, _, _ in server.posts) == [g for g in range(40) if g != 3]
+    assert all(label == "body" and state == "done" for _, label, state in server.posts)
+    assert not errors, errors
+    await page.close()
+
+    # Part search + BBox filter: only frames still listed, including a collapsed clip.
+    page, server, errors = await open_page(browser)
+    await page.fill(".nl-search", "Bottle")  # Frames 300-449.
+    await set_counts(page, "1")
+    await counts_ready(page)
+    await page.evaluate("""() => {
+      S.fstat[rvKey(301)]={body:{s:'done'}};
+      document.querySelector('#labList > .grp:not([hidden]) .nl-clip').open=false;
+    }""")
+    expected = [g for g in range(300, 450) if box_count(g) == 1 and g != 301]
+    await done_all(page, server, len(expected))
+    assert sorted(g for g, _, _ in server.posts) == expected
+
+    # Unreadable counts stay listed but are skipped and reported.
+    server.fail.add(1)
+    await page.fill(".nl-search", "Phone")  # Frames 150-299: segment 1 fails, segment 2 is known.
+    await counts_ready(page)
+    expected = [g for g in range(200, 300) if box_count(g) == 1]
+    message = await done_all(page, server, len(expected))
+    assert "50 frames with unknown BBox counts will be skipped" in message, message
+    assert sorted(g for g, _, _ in server.posts[-len(expected):]) == expected
+    assert not errors, errors
+    await page.close()
+    print("PASS: toolbar Done all marks every listed unfinished frame; follows part search and BBox filter; skips unknown counts")
+
+
+async def test_done_all_waits_only_for_listed_counts(browser):
+    """F2: segments read for auto_load_img outside the listed parts do not block toolbar Done all."""
+    page, server, errors = await open_page(browser, current=0, preload=True)
+    await page.fill(".nl-search", "Other")  # Frames 0-149 listed: segments 0 and 1.
+    await set_counts(page, "2")
+    await counts_ready(page)
+    server.hold.clear()
+    await page.click("#start_auto_load")  # The next part (150-299) needs unlisted segment 2.
+    while 2 not in server.al_calls:
+        await asyncio.sleep(0.02)
+    expected = [g for g in range(150) if box_count(g) == 2]
+    await done_all(page, server, len(expected))
+    assert sorted(g for g, _, _ in server.posts) == expected
+    server.hold.set()
+    assert not errors, errors
+    await page.close()
+    print("PASS: F2 Done all waits only for the listed frames' counts")
+
+
+async def test_status_actions_follow_filter(browser):
+    """F1: progress line, part Done all and clip status cover only the frames the BBox filter lists."""
+    page, server, errors = await open_page(browser, current=0)
+    await set_counts(page, "1")
+    await counts_ready(page)
+    matched = sum(1 for g in range(600) if box_count(g) == 1)
+    assert await page.inner_text(".nl-bbox-progress-text") == f"✓ Counted 600/600 frames · {matched} matched"
+    assert await page.inner_text(".nl-bbox-progress-pct") == "100%"
+
+    part = "#labList > .grp[data-part-name='Other']"
+    await page.locator(part + " .nl-part-done").click()
+    await page.wait_for_function(f"document.querySelector(\"{part} .nl-part-done\").checked")
+    expected = [g for g in range(150) if box_count(g) == 1]
+    assert sorted(g for g, _, state in server.posts if state == "done") == expected, server.posts
+    assert "38 frames" in await page.inner_text(part + " .nl-part-total")
+
+    clip = "#labList > .grp[data-part-name='Phone call'] .nl-clip"
+    trigger = page.locator(clip + " button[data-state='todo']").first
+    await trigger.scroll_into_view_if_needed()
+    await page.wait_for_timeout(100)  # Scroll events dismiss the menu.
+    await trigger.click()
+    await page.locator("#nl-clip-status-menu button[data-target-state='wip']").click()
+    await page.wait_for_function("!document.querySelector('.nl-clip-status-actions[aria-busy=true]')")
+    expected = [g for g in range(150, 200) if box_count(g) == 1]
+    assert sorted(g for g, _, state in server.posts if state == "wip") == expected, server.posts
+    assert "12 frames" in await page.locator(clip + " .nl-clip-meta").first.inner_text()
+
+    await page.click(".nl-bbox-all")
+    await page.wait_for_function("document.querySelector('.nl-bbox-progress-wrap').hidden")
+    assert "50 frames" in await page.locator(clip + " .nl-clip-meta").first.inner_text(), "All restores full clip counts"
+    assert not errors, errors
+    await page.close()
+    print("PASS: F1 progress line, part Done all and clip status follow the BBox filter; All restores full counts")
+
+
 async def main():
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=True)
@@ -346,6 +457,9 @@ async def main():
             await test_navigation_and_edits(browser)
             await test_auto_load_with_filter(browser)
             await test_large_list(browser)
+            await test_done_all_sidebar(browser)
+            await test_done_all_waits_only_for_listed_counts(browser)
+            await test_status_actions_follow_filter(browser)
         finally:
             await browser.close()
 

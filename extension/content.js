@@ -56,7 +56,12 @@
     status: null,
     bboxInput: null,
     bboxAllButton: null,
+    doneAllButton: null,
     bboxStatus: null,
+    bboxProgressWrap: null,
+    bboxProgressText: null,
+    bboxProgressPct: null,
+    bboxProgress: null,
     bboxFilter: readStoredBboxFilter(),
     bboxActive: false,
     bboxHiddenApplied: false,
@@ -354,6 +359,7 @@
         white-space: nowrap;
       }
       #${ROOT_ID} .nl-bbox-controls {
+        flex-wrap: wrap;
         display: flex;
         align-items: center;
         gap: 5px;
@@ -387,6 +393,18 @@
       }
       #${ROOT_ID} .nl-bbox-all[aria-pressed="true"] { border-color: #55aaff; color: #d9f3ff; background: #17384c; }
       #${ROOT_ID} .nl-bbox-controls :disabled { opacity: .5; cursor: default; }
+      #${ROOT_ID} .nl-done-all {
+        flex: none;
+        height: 27px;
+        padding: 3px 7px;
+        border: 1px solid #318f50;
+        border-radius: 4px;
+        background: #173d29;
+        color: #a8ffbf;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
       #${ROOT_ID} .nl-bbox-status {
         flex: 1;
         min-width: 0;
@@ -396,6 +414,53 @@
         overflow: hidden;
         text-overflow: ellipsis;
       }
+      #${ROOT_ID} .nl-bbox-progress-wrap {
+        flex: 0 0 100%;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding-top: 2px;
+      }
+      #${ROOT_ID} .nl-bbox-progress-wrap[hidden] { display: none !important; }
+      #${ROOT_ID} .nl-bbox-progress-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        min-width: 0;
+        font-size: 11px;
+        line-height: 1.25;
+      }
+      #${ROOT_ID} .nl-bbox-progress-text {
+        flex: 1;
+        min-width: 0;
+        color: #93c5fd;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #${ROOT_ID} .nl-bbox-progress-pct {
+        flex: none;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: #93c5fd;
+      }
+      #${ROOT_ID} .nl-bbox-progress-wrap[data-state="done"] .nl-bbox-progress-text,
+      #${ROOT_ID} .nl-bbox-progress-wrap[data-state="done"] .nl-bbox-progress-pct {
+        color: #8cffaa;
+      }
+      #${ROOT_ID} .nl-bbox-progress-wrap[data-state="partial"] .nl-bbox-progress-text,
+      #${ROOT_ID} .nl-bbox-progress-wrap[data-state="partial"] .nl-bbox-progress-pct {
+        color: #ffd166;
+      }
+      #${ROOT_ID} .nl-bbox-progress {
+        width: 100%;
+        height: 5px;
+        accent-color: #55aaff;
+      }
+      #${ROOT_ID} .nl-bbox-progress[data-state="done"] { accent-color: #59b780; }
+      #${ROOT_ID} .nl-bbox-progress[data-state="partial"] { accent-color: #f59e0b; }
       #labList .nl-clip[hidden], #labList li[data-g][hidden] { display: none !important; }
       #labList .nl-organized > .nl-clips {
         flex: 1;
@@ -718,6 +783,14 @@
           aria-label="Exact BBox counts, separated by commas" placeholder="2,3,4">
         <button class="nl-bbox-all" type="button" title="Show all BBox counts" aria-pressed="true">All</button>
         <span class="nl-bbox-status" aria-live="polite"></span>
+        <button class="nl-done-all" type="button" title="Mark every unfinished frame listed in the sidebar Done">Done all</button>
+        <div class="nl-bbox-progress-wrap" hidden>
+          <div class="nl-bbox-progress-head">
+            <span class="nl-bbox-progress-text" role="status" aria-live="polite"></span>
+            <span class="nl-bbox-progress-pct"></span>
+          </div>
+          <progress class="nl-bbox-progress" aria-label="BBox count indexing progress" max="1" value="0"></progress>
+        </div>
       </div>
     `;
 
@@ -726,6 +799,11 @@
     state.bboxInput = toolbar.querySelector("#nl-bbox-counts");
     state.bboxAllButton = toolbar.querySelector(".nl-bbox-all");
     state.bboxStatus = toolbar.querySelector(".nl-bbox-status");
+    state.doneAllButton = toolbar.querySelector(".nl-done-all");
+    state.bboxProgressWrap = toolbar.querySelector(".nl-bbox-progress-wrap");
+    state.bboxProgressText = toolbar.querySelector(".nl-bbox-progress-text");
+    state.bboxProgressPct = toolbar.querySelector(".nl-bbox-progress-pct");
+    state.bboxProgress = toolbar.querySelector(".nl-bbox-progress");
     state.input.value = state.filter;
     state.bboxInput.value = state.bboxFilter.join(",");
 
@@ -773,6 +851,7 @@
       storeBboxFilter();
       applyFilter();
     });
+    state.doneAllButton.addEventListener("click", doneAllSidebarFrames);
 
     return toolbar;
   }
@@ -1938,8 +2017,16 @@
     return true;
   }
 
+  function clipVisibleItems(details) {
+    return Array.from(details.querySelectorAll(state.bboxActive ? "li[data-g]:not([hidden])" : "li[data-g]"));
+  }
+
+  function sidebarVisibleFrameSet() {
+    return state.bboxActive ? organizedNavigationIndex()?.visible.positions || null : null;
+  }
+
   function refreshClipSummary(details) {
-    const frames = Array.from(details.querySelectorAll("li[data-g]"));
+    const frames = clipVisibleItems(details);
     if (!frames.length) return;
     const stats = getMeta(frames);
     const meta = details.querySelector(":scope > summary .nl-clip-meta");
@@ -2234,6 +2321,7 @@
   }
 
   function clipFrames(details) {
+    if (state.bboxActive) return clipVisibleItems(details).map((li) => Number(li.dataset.g));
     const visible = Array.from(details.querySelectorAll("li[data-g]"), (li) => Number(li.dataset.g));
     const row = details.closest(".grp");
     if (!row || !visible.length) return visible;
@@ -2242,8 +2330,8 @@
   }
 
   function partFrames(row) {
-    const visible = () => Array.from(row.querySelectorAll("li[data-g]"), (li) => Number(li.dataset.g));
-    if (!S.review || typeof rvG !== "function" || typeof clipAt !== "function") return visible();
+    const visible = () => Array.from(row.querySelectorAll(state.bboxActive ? "li[data-g]:not([hidden])" : "li[data-g]"), (li) => Number(li.dataset.g));
+    if (state.bboxActive || !S.review || typeof rvG !== "function" || typeof clipAt !== "function") return visible();
     let index = state.partIndex;
     if (!index || index.session !== S.sess || index.generation !== S.gen ||
         index.label !== S.labelSel || index.review !== S.review) {
@@ -2293,6 +2381,7 @@
   }
 
   function refreshStatusControls() {
+    if (state.doneAllButton) state.doneAllButton.disabled = !pageLabelingReady() || state.operationBusy;
     refreshPartStatusControls();
     for (const details of state.list?.querySelectorAll(".nl-clip") || []) refreshClipStatusControls(details);
   }
@@ -2305,6 +2394,14 @@
     state.partIndex = null;
     const targets = partFrames(row).filter((g) => frameState(g) !== value);
     if (!targets.length) { refreshPartStatusControls(); return; }
+    if (state.bboxActive && state.bboxLoad && state.bboxLoad.queue.length + state.bboxLoad.running > 0) {
+      const cache = bboxCountCache();
+      if (targets.some((g) => bboxCountForFrame(g, cache) === null)) {
+        notify("Wait for BBox counts to finish loading before changing part status");
+        refreshPartStatusControls();
+        return;
+      }
+    }
     const operation = {
       session: S.sess, generation: S.gen, label: S.labelSel, name: row.dataset.partName,
       completed: 0, total: targets.length
@@ -2339,6 +2436,73 @@
       state.partStatusOperation = null;
       state.operationBusy = false;
       refreshStatusControls();
+    }
+  }
+
+  // Unfinished frames listed in the sidebar after part search and the BBox
+  // filter; frames in collapsed clips count. Unknown BBox counts are skipped;
+  // `loading` counts those whose segment can still be read.
+  function sidebarUnfinishedFrames() {
+    const cache = state.bboxActive ? bboxCountCache() : null;
+    const targets = new Set();
+    let unknown = 0;
+    let loading = 0;
+    for (const row of state.list?.querySelectorAll(":scope > .grp:not([hidden])") || []) {
+      for (const li of row.querySelectorAll("li[data-g]:not([hidden])")) {
+        if (li.closest(".nl-clip")?.hidden) continue;
+        const g = Number(li.dataset.g);
+        if (!Number.isInteger(g) || frameState(g) === "done") continue;
+        if (cache && bboxCountForFrame(g, cache) === null) {
+          unknown += 1;
+          const segment = frameSegment(g);
+          if (segment !== null && !cache.failed.has(segment)) loading += 1;
+          continue;
+        }
+        targets.add(g);
+      }
+    }
+    return { targets: [...targets], unknown, loading };
+  }
+
+  async function doneAllSidebarFrames() {
+    if (!pageLabelingReady() || state.operationBusy) return;
+    applyFilter();
+    // Wait only for listed frames; segments read for auto_load_img elsewhere do not block.
+    const { targets, unknown, loading } = sidebarUnfinishedFrames();
+    if (loading) {
+      notify("Wait for BBox counts to finish loading before using Done all");
+      return;
+    }
+    if (!targets.length) {
+      notify(unknown ? "No frames with a known BBox count to mark Done" : "All frames in the sidebar are already Done");
+      return;
+    }
+    const operation = { session: S.sess, generation: S.gen, label: S.labelSel };
+    const skipped = unknown ? ` ${unknown} frames with unknown BBox counts will be skipped.` : "";
+    if (!window.confirm(`Mark ${targets.length} unfinished frames in the sidebar Done for ${operation.label}?${skipped}`)) return;
+    if (state.operationBusy || !partStatusMatches(operation)) return;
+    const button = state.doneAllButton;
+    state.operationBusy = true;
+    button.disabled = true;
+    button.textContent = `0/${targets.length}`;
+    refreshStatusControls();
+    try {
+      if (typeof pause === "function") pause();
+      const result = await runQueue(targets, async (g) => {
+        if (!partStatusMatches(operation)) throw new Error("The session or label has changed");
+        await saveFrameState(g, operation.label, "done", operation.generation, operation.session);
+      }, (completed) => { button.textContent = `${completed}/${targets.length}`; });
+      if (partStatusMatches(operation)) {
+        if (typeof fsRender === "function") fsRender();
+        notify(result.error
+          ? `Done all: saved ${result.completed}/${targets.length}; stopped on error: ${result.error.message}`
+          : `Done all: ${targets.length} frames set to Done`);
+      }
+    } finally {
+      state.operationBusy = false;
+      button.textContent = "Done all";
+      refreshStatusControls();
+      applyFilter();
     }
   }
 
@@ -2499,6 +2663,14 @@
     if (!partStatusMatches(operation) || state.operationBusy || !details.isConnected ||
         source === value || !FRAME_STATES.includes(source) || !FRAME_STATES.includes(value)) return;
     const targets = clipFrames(details).filter((g) => Number.isInteger(g) && frameState(g) === source);
+    if (state.bboxActive && state.bboxLoad && state.bboxLoad.queue.length + state.bboxLoad.running > 0) {
+      const cache = bboxCountCache();
+      if (targets.some((g) => bboxCountForFrame(g, cache) === null)) {
+        notify("Wait for BBox counts to finish loading before changing clip status");
+        refreshClipStatusControls(details);
+        return;
+      }
+    }
 
     if (!targets.length) {
       refreshClipStatusControls(details);
@@ -2579,7 +2751,7 @@
     const current = state.list?.querySelector(`li[data-g="${S.shownG}"]`) || state.list?.querySelector("li.cur");
     const details = current?.closest(".nl-clip");
     if (!details) return null;
-    const frames = Array.from(details.querySelectorAll("li[data-g]"))
+    const frames = Array.from(details.querySelectorAll("li[data-g]")).filter((li) => !state.bboxActive || !li.hidden || li === current)
       .map((li) => Number(li.dataset.g))
       .filter(Number.isInteger);
     const source = Number(current.dataset.g);
@@ -2655,7 +2827,7 @@
     const current = state.list?.querySelector(`li[data-g="${S.shownG}"]`) || state.list?.querySelector("li.cur");
     const details = current?.closest(".nl-clip");
     if (!details) return null;
-    const frames = Array.from(details.querySelectorAll("li[data-g]"))
+    const frames = Array.from(details.querySelectorAll("li[data-g]")).filter((li) => !state.bboxActive || !li.hidden || li === current)
       .map((li) => Number(li.dataset.g))
       .filter(Number.isInteger);
     const source = Number(current.dataset.g);
@@ -2781,6 +2953,20 @@
   }
 
   function previousQuickBboxFrames(target) {
+    if (state.bboxActive) {
+      const navigation = organizedNavigationIndex();
+      if (!navigation) return [];
+      const { visible, all, ranks } = navigation;
+      let end = visible.positions.get(target);
+      if (end === undefined) {
+        const allIndex = all.positions.get(target);
+        end = allIndex !== undefined && ranks ? ranks[allIndex] : -1;
+      }
+      const rows = end >= 0 ? visible.rows.slice(0, end) : visible.rows;
+      return rows.map((li) => Number(li.dataset.g))
+        .filter((g) => Number.isInteger(g) && g >= 0 && (end >= 0 || g < target))
+        .reverse();
+    }
     // Include Done frames hidden by only-todo, and frames never opened in this
     // tab. Read only frames authorized for the current session and label.
     const frames = S.review && typeof rvG === "function"
@@ -3562,6 +3748,10 @@
   }
 
   function bulkStatusFrames() {
+    if (state.bboxActive) {
+      const visible = sidebarVisibleFrameSet();
+      return visible ? [...visible.keys()].sort((a, b) => a - b) : [];
+    }
     const frames = S.review && typeof rvG === "function"
       ? Object.values(S.review).filter((item) => item.labels?.includes(S.labelSel)).map(rvG)
       : Array.from(S.lseq || []);
@@ -3583,7 +3773,12 @@
     const sourceClip = typeof clipAt === "function" ? frameClipKey(source) : null;
     const row = state.list?.querySelector(`li[data-g="${source}"]`);
     const details = row?.closest(".nl-clip");
-    const frames = sourceClip !== null ? allowed.filter((g) => frameClipKey(g) === sourceClip) :
+    const frames = state.bboxActive
+      ? Array.from(details?.querySelectorAll("li[data-g]") || [])
+          .filter((li) => !li.hidden || li === row)
+          .map((li) => Number(li.dataset.g))
+          .filter(Number.isInteger)
+      : sourceClip !== null ? allowed.filter((g) => frameClipKey(g) === sourceClip) :
       Array.from(details?.querySelectorAll("li[data-g]") || [], (li) => Number(li.dataset.g));
     state.bulkStatusContext = {
       session: S.sess, generation: S.gen, label: S.labelSel, source,
@@ -3754,7 +3949,9 @@
       (unchanged ? ` · ${unchanged} already have this status` : "") + ". " +
       (state.bulkStatusDirection === "marked"
         ? "Includes the current frame if marked; marked frames may span clips."
-        : "Within this clip, including the current frame; includes frames hidden by status filters.");
+        : state.bboxActive
+          ? "Within this clip's frames shown by the BBox filter, including the current frame."
+          : "Within this clip, including the current frame; includes frames hidden by status filters.");
     dialog.querySelector(".nl-status-apply").disabled = Boolean(picked.error) || !count || state.operationBusy;
   }
 
@@ -3767,7 +3964,18 @@
     // Recheck authorization when applying; a filter changes visibility, not the
     // complete current-label scope. Status changes never read/write annotations.
     const allowed = new Set(bulkStatusFrames());
+    if (state.bboxActive && state.bulkStatusDirection !== "marked" && Number.isInteger(context?.source)) {
+      allowed.add(context.source);
+    }
     const targets = picked.targets.filter((g) => allowed.has(g) && frameState(g) !== value);
+    if (state.bboxActive && state.bboxLoad && state.bboxLoad.queue.length + state.bboxLoad.running > 0) {
+      const cache = bboxCountCache();
+      if (targets.some((g) => bboxCountForFrame(g, cache) === null)) {
+        notify("Wait for BBox counts to finish loading before changing frame status");
+        updateBulkStatusPanel(dialog);
+        return;
+      }
+    }
     if (!targets.length) { updateBulkStatusPanel(dialog); return; }
     const controls = Array.from(dialog.querySelectorAll("button, input"));
     const disabled = controls.map((control) => control.disabled);
@@ -3894,7 +4102,10 @@
     if (state.eyeBulkDirection === "marked") {
       if (!bboxMarkedScopeMatches()) return { targets: [], error: "The marked frames no longer belong to the current label." };
       const targets = Array.from(state.bboxMarkedFrames)
-        .filter((g) => Number.isInteger(g) && g !== context.source && S.lseq?.includes(g));
+        .filter((g) => {
+          const visible = sidebarVisibleFrameSet();
+          return Number.isInteger(g) && g !== context.source && S.lseq?.includes(g) && (!visible || visible.has(g));
+        });
       return targets.length
         ? { targets, error: "" }
         : { targets: [], error: "No target frames marked yet. Press V to mark frames." };
@@ -3923,7 +4134,11 @@
     const quickMode = QUICK_BBOX_LABELS.has(context.label);
     const markedButton = dialog.querySelector(".nl-marked-target");
     markedButton.hidden = !quickMode;
-    markedButton.textContent = `◆ Marked frames (${bboxMarkedScopeMatches() ? state.bboxMarkedFrames.size : 0})`;
+    const visibleMarkedSet = sidebarVisibleFrameSet();
+    const visibleMarkedCount = bboxMarkedScopeMatches()
+      ? Array.from(state.bboxMarkedFrames).filter((g) => !visibleMarkedSet || visibleMarkedSet.has(g)).length
+      : 0;
+    markedButton.textContent = `◆ Marked frames (${visibleMarkedCount})`;
     if (!quickMode && state.eyeBulkDirection === "marked") state.eyeBulkDirection = "after";
     dialog.querySelector(".nl-count").disabled = state.eyeBulkDirection === "marked";
     dialog.querySelector(".nl-eye-selected-option").hidden = !hasSelected;
@@ -4015,7 +4230,7 @@
     const current = state.list?.querySelector(`li[data-g="${S.shownG}"]`) || state.list?.querySelector("li.cur");
     const details = current?.closest(".nl-clip");
     if (!details) return null;
-    const frames = Array.from(details.querySelectorAll("li[data-g]"))
+    const frames = Array.from(details.querySelectorAll("li[data-g]")).filter((li) => !state.bboxActive || !li.hidden || li === current)
       .map((li) => Number(li.dataset.g))
       .filter(Number.isInteger);
     const source = Number(current.dataset.g);
@@ -5443,6 +5658,7 @@
     state.bboxActive = false;
     state.bboxHiddenApplied = false;
     cancelBboxLoads();
+    if (state.bboxProgressWrap) state.bboxProgressWrap.hidden = true;
     state.markedRows.clear();
     state.applying = true;
     try {
@@ -5525,7 +5741,11 @@
       if (known !== undefined) return known;
       const [segmentIndex, frameIndex] = loc(g);
       const data = S.al?.get(segmentIndex);
-      if (!data || data instanceof Promise) return cache.empty.has(segmentIndex) ? 0 : null;
+      if (!data || data instanceof Promise) {
+        if (!cache.empty.has(segmentIndex)) return null;
+        cache.auto.set(g, 0);
+        return 0;
+      }
       const frame = data.frames?.[String(frameIndex)];
       const count = frame && typeof alBoxes === "function" ? countValidBoxes(alBoxes(frame, cache.label)) : 0;
       cache.auto.set(g, count);
@@ -5597,8 +5817,10 @@
   }
 
   function cancelBboxLoads() {
-    if (state.bboxLoad) state.bboxLoad.queue = [];
-    state.bboxLoad = null;
+    if (state.bboxLoad) {
+      state.bboxLoad.queue = [];
+      state.bboxLoad.extra.clear();
+    }
   }
 
   // Throttled rather than debounced, so a stream of loaded segments or saves
@@ -5622,6 +5844,44 @@
     }
   }
 
+  function updateBboxProgress(active, totalFrames, matchedFrames, unknownFrames, loadingFrames, load, pending) {
+    const wrap = state.bboxProgressWrap;
+    if (!wrap) return;
+    wrap.hidden = !active;
+    if (!active) return;
+    const countedFrames = totalFrames - unknownFrames;
+    const processedFrames = totalFrames - loadingFrames;
+    const isCounting = pending > 0 || loadingFrames > 0;
+    const progressState = isCounting ? "loading" : unknownFrames > 0 ? "partial" : "done";
+    wrap.dataset.state = progressState;
+    state.bboxProgress.dataset.state = progressState;
+
+    const totalLoads = load ? load.completed + pending : 0;
+    const max = isCounting && loadingFrames === 0 && totalLoads > 0
+      ? totalLoads
+      : Math.max(1, totalFrames);
+    const value = isCounting
+      ? (loadingFrames === 0 && totalLoads > 0 ? load.completed : processedFrames)
+      : (unknownFrames > 0 ? countedFrames : max);
+    const percent = isCounting
+      ? Math.min(99, Math.floor((value / max) * 100))
+      : (totalFrames > 0 ? Math.floor((countedFrames / totalFrames) * 100) : 100);
+
+    state.bboxProgress.max = max;
+    state.bboxProgress.value = Math.min(max, Math.max(0, value));
+
+    const segInfo = totalLoads > 0 ? ` · ${load.completed}/${totalLoads} segs` : "";
+    const text = isCounting
+      ? `Counting ${countedFrames.toLocaleString()}/${totalFrames.toLocaleString()} frames · ${matchedFrames.toLocaleString()} matched${segInfo}`
+      : unknownFrames > 0
+        ? `Counted ${countedFrames.toLocaleString()}/${totalFrames.toLocaleString()} frames · ${matchedFrames.toLocaleString()} matched · ${unknownFrames.toLocaleString()} unknown`
+        : `✓ Counted ${totalFrames.toLocaleString()}/${totalFrames.toLocaleString()} frames · ${matchedFrames.toLocaleString()} matched`;
+    const pctText = `${percent}%`;
+    if (state.bboxProgressText.textContent !== text) state.bboxProgressText.textContent = text;
+    if (state.bboxProgressPct.textContent !== pctText) state.bboxProgressPct.textContent = pctText;
+    wrap.title = `${text} (${pctText})`;
+  }
+
   function applyFilter() {
     state.navigation = null;
     if (!state.list || !state.status) return;
@@ -5630,6 +5890,9 @@
     const supported = bboxFilterSupported();
     const active = supported && state.bboxFilter.length > 0;
     if (active || state.bboxActive) state.bboxRevision += 1;
+    // Clip summaries count only listed rows while the filter applies; refresh a
+    // clip when its listed rows or that counting mode change.
+    const modeChanged = active !== state.bboxActive;
     state.bboxActive = active;
     // Frame rows are visited only while the BBox filter applies, plus one pass to unhide them.
     const touchFrames = active || state.bboxHiddenApplied;
@@ -5638,7 +5901,9 @@
     let visible = 0;
     let totalFrames = 0;
     let visibleFrames = 0;
+    let matchedFrames = 0;
     let unknownFrames = 0;
+    let loadingFrames = 0;
     // Segments with unknown counts in list order, split at the current frame.
     const queued = new Set();
     const behind = [];
@@ -5655,32 +5920,43 @@
         if (!clips.length) partVisible = true;
         for (const clip of clips) {
           let clipVisible = false;
+          let clipChanged = modeChanged;
           for (const li of clip.querySelectorAll("li[data-g]")) {
             let keep = true;
             if (active) {
               const g = Number(li.dataset.g);
               const isCurrent = li.classList.contains("cur");
-              if (isCurrent) passedCurrent = true;
+              if (isCurrent) {
+                passedCurrent = true;
+                currentSegment = frameSegment(g);
+              }
               const count = bboxCountForFrame(g, cache);
               totalFrames += 1;
               if (count === null) {
                 unknownFrames += 1;
-                const segment = frameSegment(g);
-                if (isCurrent) currentSegment = segment;
+                const segment = isCurrent ? currentSegment : frameSegment(g);
+                if (segment !== null && !cache.failed.has(segment)) loadingFrames += 1;
                 if (segment !== null && !cache.failed.has(segment) && !queued.has(segment)) {
                   queued.add(segment);
                   (passedCurrent ? ahead : behind).push(segment);
                 }
               } else {
                 keep = state.bboxFilter.includes(count);
+                if (keep) matchedFrames += 1;
               }
               if (keep) visibleFrames += 1;
             }
-            if (li.hidden === keep) li.hidden = !keep;
+            if (li.hidden === keep) {
+              li.hidden = !keep;
+              clipChanged = true;
+            }
             if (keep) clipVisible = true;
           }
           if (clip.hidden === clipVisible) clip.hidden = !clipVisible;
-          if (clipVisible) partVisible = true;
+          if (clipVisible) {
+            partVisible = true;
+            if (clipChanged) refreshClipSummary(clip);
+          }
         }
       }
       const hidePart = !matched || !partVisible;
@@ -5697,12 +5973,14 @@
       cancelBboxLoads();
     }
 
+    if (touchFrames) refreshPartStatusControls();
     const caption = query || active ? `${visible}/${rows.length} part` : `${rows.length} part`;
     if (state.status.textContent !== caption) state.status.textContent = caption;
 
     const invalid = state.bboxInput.getAttribute("aria-invalid") === "true";
     state.bboxInput.disabled = !supported;
     state.bboxAllButton.disabled = !supported;
+    state.doneAllButton.disabled = !pageLabelingReady() || state.operationBusy;
     state.bboxAllButton.setAttribute("aria-pressed", String(!state.bboxFilter.length));
     const load = state.bboxLoad;
     const pending = load ? load.queue.length + load.running : 0;
@@ -5712,6 +5990,7 @@
         unknownFrames ? ` · ${unknownFrames} unknown` : "");
     if (state.bboxStatus.textContent !== bboxCaption) state.bboxStatus.textContent = bboxCaption;
     state.bboxStatus.title = bboxCaption;
+    updateBboxProgress(active, totalFrames, matchedFrames, unknownFrames, loadingFrames, load, pending);
 
     if (!state.empty) {
       state.empty = document.createElement("div");
