@@ -4,6 +4,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
+from _ext import read_organizer_script
 from test_bbox_edges import HTML
 from test_bbox_drag import NATIVE
 from test_bbox_shortcuts import LABELS
@@ -46,7 +47,7 @@ def main():
         page.goto('https://ntt.dev.nota.ai/')
         page.add_script_tag(content=NATIVE)
         page.add_script_tag(content=SETUP)
-        source=(ROOT/'extension/content.js').read_text(encoding='utf-8').replace(
+        source=read_organizer_script().replace(
             '  function bboxEdgeGeometry(event) {',
             '  window.adjustTest={state};\n  function bboxEdgeGeometry(event) {')
         page.add_script_tag(content=source)

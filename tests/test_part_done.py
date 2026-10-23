@@ -1,14 +1,16 @@
 """Part-wide Done checkbox: full scope, sticky layout, progress and failures."""
 import asyncio
 import json
+import os
 from pathlib import Path
 
 from playwright.async_api import async_playwright
 
+from _ext import read_organizer_script
 from test_sidebar_scroll import HTML, settle, click_without_scrolling
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = (ROOT / 'extension/content.js').read_text(encoding='utf-8')
+SCRIPT = read_organizer_script()
 PART = '.grp[data-part-name="Phone call"]'
 CHECK = PART + ' .nl-part-done'
 
@@ -93,7 +95,8 @@ async def test_done_reopen_and_sticky(browser):
         }""", fraction)
         await settle(page)
         await assert_visible(page)
-    await page.screenshot(path=str(ROOT.parent/'part_done_1_6_29.png'))
+    if os.environ.get('NOTA_TEST_SCREENSHOT'):
+        await page.screenshot(path=os.environ['NOTA_TEST_SCREENSHOT'])
     old_top = await page.evaluate('document.querySelector("#labPane").scrollTop')
     server.gate.clear()
     await click_without_scrolling(page, CHECK)
@@ -215,11 +218,14 @@ async def test_preloader_transition(browser):
     assert await page.locator('.nl-load-parts').inner_text()=='Phone call + Bottle'
     server.gate.set()
     await finished(page)
-    await page.wait_for_function("document.querySelector('.nl-load-parts').textContent==='Bottle + Acting'")
+    await asyncio.sleep(.65)
+    assert await page.locator('.nl-load-parts').inner_text()=='Phone call + Bottle'
     assert await page.locator(CHECK).is_checked()
+    await page.evaluate('S.onlyTodo=true;fsRender()')
+    await page.wait_for_function("document.querySelector('.nl-load-parts').textContent==='Bottle + Acting'")
     assert not errors, errors
     await page.close()
-    print('PASS: preloader retains the current pair during saves and advances only after the whole part is Done')
+    print('PASS: preloader retains Done parts visible in sidebar and advances when hidden from sidebar')
 
 
 async def main():

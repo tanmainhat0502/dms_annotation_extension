@@ -8,6 +8,7 @@ import os
 from collections import Counter
 from pathlib import Path
 
+from _ext import read_organizer_script
 from playwright.async_api import async_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -216,18 +217,30 @@ async def test_stop_resume(browser):
 
 
 async def test_priority_order(browser):
+    """F1: sequential order from open frame; Done parts load when visible and slide when navigating to the next part."""
     context, page, server = await setup(browser)
     server.hold = asyncio.Event()
     # Open frame 1 of part 1 (frames 0-2), with frame 2 already Done.
-    await page.evaluate("S.fstat['body:2']='done'; S.shownG=1; S.g=1")
+    await page.evaluate("S.onlyTodo=false; S.fstat['body:2']='done'; S.shownG=1; S.g=1")
     await page.click("#start_auto_load")
     while len(server.calls) < 4:
         await asyncio.sleep(0.02)
-    assert [g for _, g in server.calls[:4]] == [1, 0, 2, 3], server.calls
+    assert [g for _, g in server.calls[:4]] == [1, 2, 0, 3], server.calls
     server.hold.set()
     await ready_count(page, 6)
+    await page.click("#stop_auto_load")
+    await page.evaluate("S.fstat['body:0']='done'; S.fstat['body:1']='done'")
+    await page.click("#start_auto_load")
+    await ready_count(page, 6)
+    assert (await page.locator(".nl-load-parts").inner_text()) == "Other + Phone"
+    # F1: Navigating into the second part slides the window to Phone + Bottle even when Other stays visible.
+    await page.evaluate("S.shownG=3; S.g=3")
+    await page.wait_for_timeout(650)
+    assert (await page.locator(".nl-load-parts").inner_text()) == "Phone + Bottle"
+    await ready_count(page, 6)
+    assert Counter(g for _, g in server.calls) == Counter(range(9))
     await context.close()
-    print("PASS: open frame first, earlier frames next, Done frames last")
+    print("PASS: sequential order from open frame; Done frames and Done parts load when visible in sidebar")
 
 
 async def test_navigation_and_scope(browser):
@@ -349,7 +362,7 @@ async def test_organizer_integration(browser):
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     await page.goto("https://ntt.dev.nota.ai/")
-    await page.add_script_tag(content=(ROOT / "extension" / "content.js").read_text(encoding="utf-8"))
+    await page.add_script_tag(content=read_organizer_script())
     await page.add_script_tag(content=SCRIPT)
     await page.wait_for_selector(".nl-organized")
     await page.click("#start_auto_load")

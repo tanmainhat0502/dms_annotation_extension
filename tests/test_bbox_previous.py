@@ -3,6 +3,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
+from _ext import read_organizer_script
 from test_bbox_shortcuts import HTML as BASE_HTML
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -69,7 +70,7 @@ def main():
         page.on('pageerror',lambda error:errors.append(str(error)))
         page.route('**/*',lambda route:route.fulfill(body=HTML,content_type='text/html'))
         page.goto('https://ntt.dev.nota.ai/')
-        script=(ROOT/'extension/content.js').read_text(encoding='utf-8')
+        script=read_organizer_script()
         script=script.replace('  function previousQuickBboxFrames(target) {',
           '  window.previousCopyTest={state};\n  function previousQuickBboxFrames(target) {')
         page.add_script_tag(content=script)

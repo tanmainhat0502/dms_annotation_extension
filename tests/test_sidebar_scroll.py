@@ -7,10 +7,11 @@ import asyncio
 import json
 from pathlib import Path
 
+from _ext import read_organizer_script
 from playwright.async_api import async_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = (ROOT / "extension/content.js").read_text(encoding="utf-8")
+SCRIPT = read_organizer_script()
 PRELOAD = (ROOT / "extension/preload.js").read_text(encoding="utf-8")
 CSS = """
 * { box-sizing: border-box; }

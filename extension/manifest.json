@@ -25,7 +25,17 @@
         "https://ntt.dev.nota.ai/*",
         "http://10.169.1.102:8765/*"
       ],
-      "js": ["content.js", "preload.js"],
+      "js": [
+        "core.js",
+        "styles.js",
+        "sidebar.js",
+        "bbox-filter.js",
+        "bbox-tools.js",
+        "seatbelt-eye.js",
+        "bulk-dialogs.js",
+        "content.js",
+        "preload.js"
+      ],
       "run_at": "document_idle",
       "world": "MAIN"
     }

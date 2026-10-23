@@ -6,7 +6,8 @@
 - Show BBox count progress below the **BBox** row while a filter is entered: counted/total listed frames, matches, loaded segments, and unknown counts.
 - Speed up status changes on long sidebars: repaint only rows whose status or edit mark changed and refresh only their clips (about 52 ms to 5 ms per change at 12,000 frames while the current frame is in view). V markers update only the toggled frames instead of every row.
 - Seatbelt Ctrl+B mask copy skips target frames whose mask would not change, so they are not re-saved or switched to In progress.
-- Speed up **auto_load_img** (7.3 s → 3.7 s for 120 frames at 100 ms server latency in a local browser benchmark): start the next download as soon as one finishes instead of waiting 50 ms after the last of each batch, use 4 parallel requests on HTTP/1.1 or 6 on HTTP/2/3, and keep one background request while the viewer loads frames. Download from the open frame onward, then earlier frames, with Done frames last.
+- Speed up **auto_load_img** (7.3 s → 3.7 s for 120 frames at 100 ms server latency in a local browser benchmark) and align it with all sidebar filters: start the next download as soon as one finishes instead of waiting 50 ms after the last of each batch, use 4 parallel requests on HTTP/1.1 or 6 on HTTP/2/3, and keep one background request while the viewer loads frames. Download sequentially from the open frame onward, then earlier frames, for all frames shown in the sidebar (including Done frames when **Show done** is enabled), and slide the two-part window when navigating into the second part or when active status/BBox filters hide a part.
+- Modularize the Organizer content scripts into focused domain modules (`core.js`, `styles.js`, `sidebar.js`, `bbox-filter.js`, `bbox-tools.js`, `seatbelt-eye.js`, `bulk-dialogs.js`, `content.js`, `preload.js`) and unify test script injection through `tests/_ext.py`.
 
 ## 1.6.37 - 2026-10-22
 

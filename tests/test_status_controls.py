@@ -6,11 +6,12 @@ from pathlib import Path
 
 from playwright.async_api import async_playwright
 
+from _ext import read_organizer_script
 from test_sidebar_scroll import HTML as BASE, settle, click_without_scrolling
 from test_part_done import Server
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = (ROOT / 'extension/content.js').read_text(encoding='utf-8')
+SCRIPT = read_organizer_script()
 CLIP = '.grp[data-part-name="Phone call"] .nl-clip[data-clip="#02"]'
 FILTER = '#nl-status-filters input[data-state="{}"]'
 STATES = ['done', 'wip', 'todo']

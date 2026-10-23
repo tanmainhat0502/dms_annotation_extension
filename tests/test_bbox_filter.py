@@ -9,11 +9,12 @@ from urllib.parse import parse_qs, urlparse
 
 from playwright.async_api import async_playwright
 
+from _ext import read_organizer_script
 from test_preload import HTML as CACHE_HTML
 from test_sidebar_scroll import HTML as SIDEBAR_HTML
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = (ROOT / "extension/content.js").read_text(encoding="utf-8")
+SCRIPT = read_organizer_script()
 PRELOAD = (ROOT / "extension/preload.js").read_text(encoding="utf-8")
 PNG = (ROOT / "extension/icons/icon16.png").read_bytes()
 SEGMENT = 100
@@ -254,6 +255,13 @@ async def test_auto_load_with_filter(browser):
     await page.evaluate("""() => {
       for (let g=0; g<150; g++) if ([2,3].includes(g%4)) S.fstat[rvKey(g)]={body:{s:'done'}};
     }""")
+    await page.wait_for_timeout(650)
+    assert await page.locator(".nl-load-parts").inner_text() == "Other + Phone call"
+    rev_before = await page.evaluate("window.__notaBboxFilterV1.revision")
+    await page.evaluate("""() => {
+      S.onlyTodo = true; fsRender();
+    }""")
+    assert await page.evaluate("window.__notaBboxFilterV1.revision") > rev_before
     await page.wait_for_function("document.querySelector('.nl-load-parts').textContent === 'Phone call + Bottle'")
     await page.wait_for_function("document.querySelector('.nl-load-count').textContent === 'Ready 150 / 150 images'")
     assert {int(seg[1:]) * SEGMENT + i for seg, i in server.images[150:]} == \

@@ -4,6 +4,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
+from _ext import read_organizer_script
 from test_bbox_boundary import HTML as BOUNDARY_HTML
 from test_bbox_shortcuts import LABELS
 
@@ -55,10 +56,10 @@ view.addEventListener('mousedown',e=>{
   const h=handles.find(h=>Math.hypot(h[0]-x,h[1]-y)<20);
   if(h) ED.drag={n:0,coord:h[2],box0:ED.items[0].box.slice(),moved:false};
 });
-view.addEventListener('mousemove',e=>{
+window.addEventListener('mousemove',e=>{
   if(!edActive() || !ED.drag) return;
-  const r=view.getBoundingClientRect(),d=ED.drag;
-  ED.items[d.n].box[d.coord]=d.coord%2 ? (e.clientY-r.top)*600/r.height : (e.clientX-r.left)*1000/r.width;
+  const r=view.getBoundingClientRect(),d=ED.drag,c={4:1,5:3,6:0,7:2}[d.corner]??d.coord;
+  ED.items[d.n].box[c]=c%2 ? (e.clientY-r.top)*600/r.height : (e.clientX-r.left)*1000/r.width;
   d.moved=true;edRepaint();
 });
 window.addEventListener('mouseup',()=>{
@@ -97,7 +98,7 @@ def main():
         page.route('**/*', route)
         page.goto('https://ntt.dev.nota.ai/')
         page.add_script_tag(content=NATIVE)
-        source = (ROOT/'extension/content.js').read_text(encoding='utf-8')
+        source = read_organizer_script()
         # Observe operation scope without replacing production event handlers.
         source = source.replace('  function bboxEdgeGeometry(event) {',
             '  window.edgeTest={state,bboxEdgePatchMatches,quickOperationMatches};\n  function bboxEdgeGeometry(event) {')

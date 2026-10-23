@@ -4,11 +4,12 @@ from urllib.parse import urlparse
 
 from playwright.sync_api import sync_playwright
 
+from _ext import read_organizer_script
 from test_sidebar_scroll import HTML as SIDEBAR_HTML
 from test_preload import HTML as CACHE_HTML
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = (ROOT/'extension/content.js').read_text(encoding='utf-8')
+SCRIPT = read_organizer_script()
 PRELOAD = (ROOT/'extension/preload.js').read_text(encoding='utf-8')
 PNG = (ROOT/'extension/icons/icon16.png').read_bytes()
 

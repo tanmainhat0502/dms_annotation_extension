@@ -54,7 +54,7 @@ Reload your DMS tab and open **Labeling**. Search for a part, expand a clip such
 | Filter by box count | For bbox labels, type exact counts such as `2,3,4` in **BBox** below part search to show only frames with that many boxes. **All** or an empty field shows every frame. Counts include saved edits and update after editing. A progress line below shows how many listed frames are counted, matched, or unknown. `A` / `D`, `Space`, and **auto_load_img** follow the filtered frames. |
 | Done all listed frames | **Done all** at the end of the BBox row marks every unfinished frame currently listed in the sidebar Done, after confirmation. Without filters that is every frame of the label; with part search or a BBox filter, only the frames still listed (collapsed clips included). Frames with unknown BBox counts are skipped. |
 | Lock the timeline | Click the padlock to the right of the bottom timeline. When locked, clicking or dragging the timeline cannot jump to another frame. `A` / `D`, `Space`, and sidebar frame selection still work. Click again to unlock; your choice is remembered after reload. |
-| Load images ahead | Click **auto_load_img** to download the current part and the next unfinished part in the background. See their combined image count; **Stop** pauses and keeps downloaded images. |
+| Load images ahead | Click **auto_load_img** to download the current part and the next part that has frames in the sidebar (matching active status and BBox filters, including Done frames when **Show done** is enabled). See their combined image count; **Stop** pauses and keeps downloaded images. |
 | Filter frame status | Tick **Show done**, **Show in progress**, and **Show not checked** below the progress bar. Combine any choices with the part search; navigation follows the filtered frames. Choices are remembered after reload. The checkboxes stay in view while you use them; farther down the list, the visible frame/clip/part stays in place. |
 | Change clip status | Hover over or click **Done**, **Not checked**, or **In progress** on a clip, then choose one of the other two statuses. Only frames currently in the chosen source status change, including hidden frames in that clip. |
 | Set the whole part Done | Tick **Done all** below the part's frame count in the left column. Untick to set all its frames to **In progress**. The control follows scrolling within the part; a dash means only some frames are Done. |
@@ -83,10 +83,10 @@ Reload your DMS tab and open **Labeling**. Search for a part, expand a clip such
 ## Automatic image loading
 
 1. Open a frame in the part you are working on and click **auto_load_img** under the part search box.
-2. The extension downloads that part, then the next unfinished part, with up to **4 parallel background requests** (6 when the server uses HTTP/2 or HTTP/3). It starts at the open frame, then fills earlier frames; Done frames load last. The counter shows images stored / total images in those **2 parts**.
-3. Continue editing or leave the tab open. Loading continues even while playback is paused. Once both parts are loaded, **Ready** means the loader is still watching for part completion.
-4. When **every frame** of the first part is successfully saved as Done, its image cache is released and the next unfinished part loads automatically: **1+2 → 2+3 → 3+4**. Completing only the last clip does not advance if earlier frames remain unfinished.
-5. **Stop** cancels background downloads but keeps completed images. Click **auto_load_img** again to fill the missing images for the part currently open and its next unfinished part. Failed downloads are retried on restart.
+2. The extension downloads that part, then the next part with frames shown in the sidebar, with up to **4 parallel background requests** (6 when the server uses HTTP/2 or HTTP/3). It downloads sequentially from the open frame to the end of the part, then fills earlier frames, for all frames matching the active sidebar filters (including Done frames when **Show done** is enabled). The counter shows images stored / total matching images in those **2 parts**.
+3. Continue editing or leave the tab open. Loading continues even while playback is paused. Once both parts are loaded, **Ready** means the loader is still watching for navigation and filter/status changes.
+4. When you move into the second part, or when **every frame** of the first part is hidden from the sidebar (for example, saved as Done while **Show done** is unchecked), the first part's image cache is released and the next matching part loads automatically: **1+2 → 2+3 → 3+4**. Completing only the last clip does not advance if earlier frames remain visible in the sidebar.
+5. **Stop** cancels background downloads but keeps completed images. Click **auto_load_img** again to fill the missing images for the part currently open and its next matching part. Failed downloads are retried on restart.
 
 Compressed images are stored in the browser's local IndexedDB storage, not kept as thousands of decoded bitmaps in RAM. Normal navigation reuses these images and decodes only what the viewer needs. `A` / `D` also prepare up to three nearby frames.
 
@@ -96,9 +96,7 @@ In Labeling, `Space` presents selected frames at an even **10 frames/second at 1
 
 The loader allows up to four background requests per tab over HTTP/1.1, leaving two of Chrome's six connections per host for the viewer and saves, or six over HTTP/2/HTTP/3. There is no fixed images-per-second limit; actual speed depends on the server and connection. While the viewer is fetching or decoding frames it keeps only one background request; while frame status is saving it starts none. Requests already in progress may continue. Multiple users or tabs add to the server's load.
 
-The counter covers the active label's complete parts, including Done frames hidden by filters. It changes when the two-part window advances; the final part runs alone. Jumping outside the current pair while loading starts a new pair at that part. Stop first if you only want to inspect another part temporarily.
-
-With a **BBox** filter, the loader downloads only frames the filter shows, and the counter covers only those frames. Frames whose counts are still loading wait (`awaiting BBox counts`). A part counts as complete once all its filtered frames are Done. Changing the filter keeps already downloaded images.
+The counter covers all frames in the two-part window that match the active status filters (**Show done**, **Show in progress**, **Show not checked**) and the **BBox** filter in the sidebar. Frames whose BBox counts are still loading wait (`awaiting BBox counts`). The window updates when you move to the next part or when status/BBox filters change; the final matching part runs alone. Changing the filter keeps already downloaded images. Stop first if you only want to inspect another part temporarily.
 
 Switching sessions, labels, image size/quality, or leaving Labeling stops loading and clears this cache. Reloading the tab also starts fresh. Browser storage limits or network failures may stop/limit loading and are shown in the toolbar. Loading ahead reduces network waits; it cannot remove image decoding time or waits for other DMS data.
 
@@ -169,7 +167,7 @@ Search, grouping, and label visibility change only the interface. Annotation edi
 
 | Path | Contents |
 | --- | --- |
-| `extension/` | Extension source; load this folder in Chrome. |
+| `extension/` | Extension source (`core.js`, `styles.js`, `sidebar.js`, `bbox-filter.js`, `bbox-tools.js`, `seatbelt-eye.js`, `bulk-dialogs.js`, `content.js`, `preload.js`, `popup.js`); load this folder in Chrome. |
 | `docs/images/` | Installation screenshots used above. |
 | `dist/` | Versioned release ZIPs. |
 | `native-updater/` | Windows and macOS updater source. |
@@ -177,4 +175,4 @@ Search, grouping, and label visibility change only the interface. Annotation edi
 | `tests/` | Sidebar scrolling, image preloading, bbox shortcuts/boundaries, and edge adjustment regression checks. |
 | `.github/workflows/` | Build the macOS updater; publish releases on `vX.Y.Z` tags. |
 
-To release: update the version in `extension/manifest.json` and `extension/content.js`, update the docs/changelog, run `native-updater/build.ps1` if the Windows updater changed, then run `scripts/package.ps1`. Commit and push, then push a matching `vX.Y.Z` tag. GitHub Actions publishes the ZIP with Windows and universal macOS updaters.
+To release: update the version in `extension/manifest.json` and `extension/core.js`, update the docs/changelog, run `native-updater/build.ps1` if the Windows updater changed, then run `scripts/package.ps1`. Commit and push, then push a matching `vX.Y.Z` tag. GitHub Actions publishes the ZIP with Windows and universal macOS updaters.

@@ -22,7 +22,7 @@ Use this checklist to verify cached playback, the timeline lock, bbox editing, s
 - Find **Done all** below a part's frame count in the left column. Scroll up/down inside a long part and resize the window: the checkbox and count should remain visible. Move into another part and verify its control takes over.
 - Tick Done all on a part you intend to complete. The count shows save progress, then all its clips/frames become Done. Untick it: all frames become In progress. Other parts, labels, and annotation boxes must stay unchanged. Check collapsed clips, a partially Done part (dash), and keyboard Space on the focused checkbox.
 - With **Show done** unchecked, the action must still cover the complete current-label part. Completed parts disappear; check **Show done** to see and untick the part again. If a request fails, the checkbox must reflect only successful saves and show an error; retry Done to save the remaining frames. Switching label/session during saving must stop new queued requests.
-- With auto_load_img running, Done all must advance its two-part cache only after the whole part's Done saves succeed. Test that opening/closing clips and scrolling during saves keep the control accessible.
+- With auto_load_img running and **Show done** unchecked, Done all must advance its two-part cache only after the whole part's Done saves succeed (with **Show done** checked, the Done part remains in the sidebar and stays cached until you move to the next part or hide Done frames). Test that opening/closing clips and scrolling during saves keep the control accessible.
 - Place a hand box against the bottom image edge. Drag its bottom-right handle horizontally while moving slightly in and out of the black margin: the width should keep following the pointer without freezing or jumping on re-entry. Release outside: the saved bottom edge should be clipped to the image.
 - Grab the outside half of a boundary handle. Repeat at all four image edges, while zoomed/panned, and with other bbox labels. Check that the box saves once on release, `Z` restores it for body/hand/eye, and losing window focus during a drag discards that unsaved drag. Viewer controls and empty-margin clicks must not start a bbox edit.
 - On body/hand/eye, press `C` in frame 2: all boxes should come from frame 1. Edit and save frame 3, then press C in frame 4: it should use the edited boxes. Leave frame 5 unchanged and press C in frame 6: it should use frame 5. Leave frame 7 empty and press C in frame 8: it should use frame 6.
@@ -52,7 +52,7 @@ Use this checklist to verify cached playback, the timeline lock, bbox editing, s
 - Leave playback paused. The image count should continue increasing without further input.
 - Click **Stop**. The count should stabilize; completed images remain available. Click **auto_load_img** to continue missing images without reloading the completed ones.
 - Once the counter says **Ready**, revisit downloaded frames. Network waiting should be reduced; image decoding and other DMS requests can still take time.
-- Complete the last unfinished clip in part 1. Once **all frames** are saved as Done, the names change to parts 2 and 3. Part 2's stored images remain; part 3 fills the available slot.
+- Complete the last unfinished clip in part 1 with **Show done** unchecked (or navigate into part 2 while **Show done** is checked). The names change to parts 2 and 3. Part 2's stored images remain; part 3 fills the available slot.
 - If earlier frames in part 1 are unfinished, marking just its last clip Done must not advance the pair.
 - Repeat with part 2, then test the last part (only one part remains).
 - Stop, open a different part, then start. The pair should start at the newly opened part.
@@ -79,6 +79,7 @@ python tests/test_bbox_drag.py
 python tests/test_part_done.py
 python tests/test_bbox_adjust.py
 python tests/test_status_controls.py
+python tests/test_sidebar_status.py
 python tests/test_filter_scroll.py
 python tests/test_bulk_status.py
 ```
