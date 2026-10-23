@@ -94,6 +94,7 @@
     if (state.bboxEditingInstalled || typeof edSave !== "function") return;
     const nativeSave = edSave;
     edSave = function (...args) {
+      state.bboxEditRevision += 1;
       const result = nativeSave.apply(this, args);
       scheduleBboxFilterRefresh();
       if (result instanceof Promise) result.then(scheduleBboxFilterRefresh, scheduleBboxFilterRefresh);

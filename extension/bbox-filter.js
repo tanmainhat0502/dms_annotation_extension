@@ -5,11 +5,12 @@
   const {
     BBOX_COUNT_PARALLEL, BBOX_LABELS, BBOX_REFRESH_MS, FRAME_STATES, ROOT_ID, VERSION,
     anyBulkDialogOpen, bboxCountsPendingFor, captureSidebarPosition, clipFrames,
-    currentLabelScope, frameState, insertBeforeFrameName, loadAutoLabel, normalize, notify,
-    organizedNavigationIndex, pageLabelingReady, parseBboxCounts, parseBoxBounds, partFrames,
-    partStatusMatches, quickBboxReady, refreshClipStatusControls, refreshClipSummary,
-    refreshPartStatusControls, refreshStatusControls, restoreSidebarPosition, runQueue,
-    saveFrameState, state, statusName, storeBboxFilter, storeFilter
+    currentLabelScope, frameSegment, frameState, insertBeforeFrameName, loadAutoLabel,
+    normalize, notify, organizedNavigationIndex, pageLabelingReady, parseBboxCounts,
+    parseBoxBounds, partFrames, partStatusMatches, prepareSessionWarnings, quickBboxReady,
+    refreshClipStatusControls, refreshClipSummary, refreshPartStatusControls,
+    refreshStatusControls, restoreSidebarPosition, runQueue, saveFrameState,
+    setFrameWarnBadge, state, statusName, storeBboxFilter, storeFilter
   } = NL;
 
   function buildToolbar() {
@@ -28,6 +29,8 @@
         <input id="nl-bbox-counts" type="search" inputmode="numeric" autocomplete="off" spellcheck="false"
           aria-label="Exact BBox counts, separated by commas" placeholder="2,3,4">
         <button class="nl-bbox-all" type="button" title="Show all BBox counts" aria-pressed="true">All</button>
+        <button id="nl-bbox-warn" class="nl-bbox-warn" type="button"
+          title="Filter frames with likely BBox errors across the session" aria-pressed="false">⚠ Warn</button>
         <span class="nl-bbox-status" aria-live="polite"></span>
         <button class="nl-done-all" type="button" title="Mark every unfinished frame listed in the sidebar Done">Done all</button>
         <div class="nl-bbox-progress-wrap" hidden>
@@ -44,6 +47,7 @@
     state.status = toolbar.querySelector(".nl-status");
     state.bboxInput = toolbar.querySelector("#nl-bbox-counts");
     state.bboxAllButton = toolbar.querySelector(".nl-bbox-all");
+    state.bboxWarnButton = toolbar.querySelector(".nl-bbox-warn");
     state.bboxStatus = toolbar.querySelector(".nl-bbox-status");
     state.doneAllButton = toolbar.querySelector(".nl-done-all");
     state.bboxProgressWrap = toolbar.querySelector(".nl-bbox-progress-wrap");
@@ -94,7 +98,13 @@
       state.bboxInput.value = "";
       state.bboxInput.setAttribute("aria-invalid", "false");
       state.bboxFilter = [];
+      state.bboxWarnActive = false;
       storeBboxFilter();
+      applyFilter();
+    });
+    state.bboxWarnButton.addEventListener("click", () => {
+      if (!bboxFilterSupported()) return;
+      state.bboxWarnActive = !state.bboxWarnActive;
       applyFilter();
     });
     state.doneAllButton.addEventListener("click", doneAllSidebarFrames);
@@ -319,6 +329,7 @@
     const operation = state.clipScopes.get(details);
     if (!partStatusMatches(operation) || state.operationBusy || !details.isConnected ||
         source === value || !FRAME_STATES.includes(source) || !FRAME_STATES.includes(value)) return;
+    if (state.bboxActive && state.bboxRefreshTimer) applyFilter();
     const targets = clipFrames(details).filter((g) => Number.isInteger(g) && frameState(g) === source);
     if (bboxCountsPendingFor(targets)) {
       notify("Wait for BBox counts to finish loading before changing clip status");
@@ -375,6 +386,7 @@
       refreshPartStatusControls();
       return;
     }
+    if (state.bboxActive && state.bboxRefreshTimer) applyFilter();
     state.partIndex = null;
     const targets = partFrames(row).filter((g) => frameState(g) !== value);
     if (!targets.length) { refreshPartStatusControls(); return; }
@@ -425,6 +437,13 @@
   // `loading` counts those whose segment can still be read.
   function sidebarUnfinishedFrames() {
     const cache = state.bboxActive ? bboxCountCache() : null;
+    if (state.bboxWarnActive && cache && !cache.warningsReady) {
+      return {
+        targets: [],
+        unknown: cache.warnUnknownFrames || 0,
+        loading: Math.max(1, cache.warnLoadingFrames || 0)
+      };
+    }
     const targets = new Set();
     let unknown = 0;
     let loading = 0;
@@ -500,7 +519,14 @@
       ...currentLabelScope(),
       auto: new Map(), // g -> auto-label box count
       empty: new Set(), // segments without auto-labels
-      failed: new Set() // segments whose auto-labels could not be read
+      failed: new Set(), // segments whose auto-labels could not be read
+      warnings: new Map(), // g -> { codes, label, title }
+      warningsReady: false,
+      warningsSignature: "",
+      warnTotalFrames: 0,
+      warnLoadingFrames: 0,
+      warnUnknownFrames: 0,
+      warnOrder: []
     };
     return state.bboxCounts;
   }
@@ -512,10 +538,6 @@
       if (parseBoxBounds(item?.box)) count += 1;
     }
     return count;
-  }
-
-  function frameSegment(g) {
-    try { return loc(g)[0]; } catch (_) { return null; }
   }
 
   // Box count of frame g, or null until its segment's auto-labels are read.
@@ -553,11 +575,18 @@
     const cache = state.bboxCounts;
     if (!partStatusMatches(cache)) return null;
     const count = bboxCountForFrame(g, cache);
-    if (count !== null) return state.bboxFilter.includes(count);
-    const segment = frameSegment(g);
-    if (cache.failed.has(segment)) return true;
-    if (segment !== null) requestExtraBboxSegment(cache, segment);
-    return null;
+    if (count === null) {
+      const segment = frameSegment(g);
+      if (cache.failed.has(segment)) return true;
+      if (segment !== null) requestExtraBboxSegment(cache, segment);
+      return null;
+    }
+    if (state.bboxFilter.length > 0 && !state.bboxFilter.includes(count)) return false;
+    if (state.bboxWarnActive) {
+      if (!cache.warningsReady) return null;
+      return cache.warnings.has(g);
+    }
+    return true;
   }
 
   function bboxLoadFor(cache) {
@@ -673,7 +702,7 @@
     wrap.title = `${text} (${pctText})`;
   }
 
-  function filterPartRowClips(row, active, modeChanged, cache, metrics) {
+  function filterPartRowClips(row, active, countActive, warnActive, modeChanged, cache, metrics) {
     const clips = row.querySelectorAll(":scope > .nl-clips > .nl-clip");
     if (!clips.length) return true;
     let partVisible = false;
@@ -682,6 +711,7 @@
       let clipChanged = modeChanged;
       for (const li of clip.querySelectorAll("li[data-g]")) {
         let keep = true;
+        let warning = null;
         if (active) {
           const g = Number(li.dataset.g);
           const isCurrent = li.classList.contains("cur");
@@ -702,10 +732,21 @@
               }
             }
           } else {
-            keep = state.bboxFilter.includes(count);
-            if (keep) metrics.matchedFrames += 1;
+            if (countActive && !state.bboxFilter.includes(count)) keep = false;
+            if (keep && warnActive) {
+              if (cache.warningsReady) {
+                warning = cache.warnings.get(g) || null;
+                keep = warning !== null;
+              }
+            }
+            if (keep && (!warnActive || cache.warningsReady)) {
+              metrics.matchedFrames += 1;
+            }
           }
           if (keep) metrics.visibleFrames += 1;
+        }
+        if (warnActive || state.bboxWarnApplied) {
+          setFrameWarnBadge(li, keep ? warning : null);
         }
         if (li.hidden === keep) {
           li.hidden = !keep;
@@ -722,20 +763,25 @@
     return partVisible;
   }
 
-  function updateBboxFilterControls(supported, active, query, rowsCount, visibleParts, metrics) {
+  function updateBboxFilterControls(supported, active, warnActive, cache, query, rowsCount, visibleParts, metrics) {
     const caption = query || active ? `${visibleParts}/${rowsCount} part` : `${rowsCount} part`;
     if (state.status.textContent !== caption) state.status.textContent = caption;
 
     const invalid = state.bboxInput.getAttribute("aria-invalid") === "true";
     state.bboxInput.disabled = !supported;
     state.bboxAllButton.disabled = !supported;
+    if (state.bboxWarnButton) {
+      state.bboxWarnButton.disabled = !supported;
+      state.bboxWarnButton.setAttribute("aria-pressed", String(warnActive));
+    }
     state.doneAllButton.disabled = !pageLabelingReady() || state.operationBusy;
-    state.bboxAllButton.setAttribute("aria-pressed", String(!state.bboxFilter.length));
+    state.bboxAllButton.setAttribute("aria-pressed", String(!state.bboxFilter.length && !warnActive));
     const load = state.bboxLoad;
-    const pending = load ? load.queue.length + load.running : 0;
+    const rawPending = load ? load.queue.length + load.running : 0;
+    const pending = rawPending + (warnActive && cache && !cache.warningsReady && !rawPending ? 1 : 0);
     const bboxCaption = !supported ? "Unavailable for this label" : invalid ? "Use 2,3,4" : !active ? "" :
       `${metrics.visibleFrames}/${metrics.totalFrames} frames` +
-      (pending ? ` · loading ${load.completed}/${load.completed + pending}` :
+      (pending ? ` · loading ${load ? load.completed : 0}/${(load ? load.completed : 0) + pending}` :
         metrics.unknownFrames ? ` · ${metrics.unknownFrames} unknown` : "");
     if (state.bboxStatus.textContent !== bboxCaption) state.bboxStatus.textContent = bboxCaption;
     state.bboxStatus.title = bboxCaption;
@@ -748,7 +794,9 @@
       state.empty = document.createElement("div");
       state.empty.className = "nl-empty-filter";
     }
-    const emptyMessage = active ? "No frames match the BBox filter." : "No matching parts.";
+    const emptyMessage = active
+      ? (warnActive && !state.bboxFilter.length ? "No frames with BBox warnings." : "No frames match the BBox filter.")
+      : "No matching parts.";
     if (state.empty.textContent !== emptyMessage) state.empty.textContent = emptyMessage;
     const shouldShowEmpty = Boolean((query || active) && rowsCount && !visibleParts);
     if (shouldShowEmpty && !state.empty.isConnected) state.list.prepend(state.empty);
@@ -761,16 +809,19 @@
     const query = normalize(state.filter);
     const rows = Array.from(state.list.querySelectorAll(":scope > .grp"));
     const supported = bboxFilterSupported();
-    const active = supported && state.bboxFilter.length > 0;
+    const countActive = supported && state.bboxFilter.length > 0;
+    const warnActive = supported && Boolean(state.bboxWarnActive);
+    const active = countActive || warnActive;
     if (active || state.bboxActive) state.bboxRevision += 1;
+    const cache = active ? bboxCountCache() : null;
+    if (warnActive) prepareSessionWarnings(cache);
     // Clip summaries count only listed rows while the filter applies; refresh a
     // clip when its listed rows or that counting mode change.
-    const modeChanged = active !== state.bboxActive;
+    const modeChanged = active !== state.bboxActive || (warnActive && cache.warningsReady !== state.bboxWarnApplied);
     state.bboxActive = active;
     // Frame rows are visited only while the BBox filter applies, plus one pass to unhide them.
-    const touchFrames = active || state.bboxHiddenApplied;
+    const touchFrames = active || state.bboxHiddenApplied || state.bboxWarnApplied;
     state.bboxHiddenApplied = active;
-    const cache = active ? bboxCountCache() : null;
     const metrics = {
       totalFrames: 0, visibleFrames: 0, matchedFrames: 0, unknownFrames: 0, loadingFrames: 0,
       queued: new Set(), behind: [], ahead: [], passedCurrent: false, currentSegment: null
@@ -781,11 +832,18 @@
       const partName = row.dataset.partName || row.querySelector(":scope > .vlab")?.textContent || "";
       const matched = !query || normalize(partName).includes(query);
       const partVisible = touchFrames && (matched || !active)
-        ? filterPartRowClips(row, active, modeChanged, cache, metrics)
+        ? filterPartRowClips(row, active, countActive, warnActive, modeChanged, cache, metrics)
         : !active;
       const hidePart = !matched || !partVisible;
       if (row.hidden !== hidePart) row.hidden = hidePart;
       if (!hidePart) visible += 1;
+    }
+
+    if (!warnActive && state.bboxWarnApplied) {
+      for (const badge of state.list.querySelectorAll(".nl-warn-badge")) badge.remove();
+      state.bboxWarnApplied = false;
+    } else if (warnActive) {
+      state.bboxWarnApplied = Boolean(cache.warningsReady);
     }
 
     if (active) {
@@ -793,13 +851,14 @@
       const order = currentSegment !== null && behind.includes(currentSegment)
         ? [currentSegment, ...ahead, ...behind.filter((segment) => segment !== currentSegment)]
         : [...ahead, ...behind];
-      requestBboxSegments(cache, order);
+      const fullOrder = warnActive ? [...new Set([...order, ...(cache.warnOrder || [])])] : order;
+      requestBboxSegments(cache, fullOrder);
     } else {
       cancelBboxLoads();
     }
 
     if (touchFrames) refreshPartStatusControls();
-    updateBboxFilterControls(supported, active, query, rows.length, visible, metrics);
+    updateBboxFilterControls(supported, active, warnActive, cache, query, rows.length, visible, metrics);
   }
 
   Object.assign(NL, {
@@ -808,7 +867,7 @@
     clearMarkedFrames, toggleMarkedFrame, buildMarkedBadge, closeClipStatusMenu,
     scheduleCloseClipStatusMenu, openClipStatusMenu, setClipSourceState, setWholePartState,
     sidebarUnfinishedFrames, doneAllSidebarFrames, bboxFilterSupported, bboxCountCache,
-    countValidBoxes, frameSegment, bboxCountForFrame, bboxFilterWants, bboxLoadFor,
+    countValidBoxes, bboxCountForFrame, bboxFilterWants, bboxLoadFor,
     requestBboxSegments, requestExtraBboxSegment, pumpBboxLoads, cancelBboxLoads,
     scheduleBboxFilterRefresh, refreshBboxFilter, updateBboxProgress, filterPartRowClips,
     updateBboxFilterControls, applyFilter

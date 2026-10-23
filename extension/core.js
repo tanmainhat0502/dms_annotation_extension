@@ -82,6 +82,7 @@
     status: null,
     bboxInput: null,
     bboxAllButton: null,
+    bboxWarnButton: null,
     doneAllButton: null,
     bboxStatus: null,
     bboxProgressWrap: null,
@@ -89,6 +90,9 @@
     bboxProgressPct: null,
     bboxProgress: null,
     bboxFilter: readStoredBboxFilter(),
+    bboxWarnActive: false,
+    bboxWarnApplied: false,
+    bboxEditRevision: 0,
     bboxActive: false,
     bboxHiddenApplied: false,
     bboxRevision: 0,
@@ -327,9 +331,15 @@
       S.sess === operation.session && S.gen === operation.generation);
   }
 
+  function frameSegment(g) {
+    try { return loc(g)[0]; } catch (_) { return null; }
+  }
+
   function bboxCountsPendingFor(frames) {
-    if (!state.bboxActive || !state.bboxLoad || state.bboxLoad.queue.length + state.bboxLoad.running <= 0) return false;
+    if (!state.bboxActive) return false;
     const cache = bboxCountCache();
+    if (state.bboxWarnActive && !cache.warningsReady) return true;
+    if (!state.bboxLoad || state.bboxLoad.queue.length + state.bboxLoad.running <= 0) return false;
     return frames.some((g) => bboxCountForFrame(g, cache) === null);
   }
 
@@ -681,13 +691,14 @@
         prefix: segPfx(segmentIndex),
         seg: segment.name,
         i: frameIndex,
-        t: Math.round(S.ts[g] || 0),
+        t: Math.round(S.ts?.[g] || 0),
         label,
         items
       })
     });
     if (S.gen !== expectedGeneration) throw new Error("The session has changed");
     (S.ledits[key] = S.ledits[key] || {})[label] = items;
+    state.bboxEditRevision += 1;
     return key;
   }
 
@@ -824,7 +835,7 @@
     BBOX_COPY_MATCH_LONG_AXIS_THRESHOLD, state, readStoredFilter, readBulkTab, storeFilter,
     readStoredBboxFilter, storeBboxFilter, parseBboxCounts, ensureTimelineLock, normalize,
     isLabelingMode, pageLabelingReady, quickBboxReady, anyBulkDialogOpen, currentLabelScope,
-    sessionLabelFrames, partStatusMatches, bboxCountsPendingFor, sliceBulkCandidates,
+    sessionLabelFrames, partStatusMatches, frameSegment, bboxCountsPendingFor, sliceBulkCandidates,
     insertBeforeFrameName, clearEditorSelection, singleSelectedEditorIndex,
     drawCanvasPolygonOverlay, pointerGestureActive, pointerHoverSignature,
     useNativePointerCursor, schedulePointerMagnifier, ensurePointerPerformance,

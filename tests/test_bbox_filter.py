@@ -54,14 +54,16 @@ def box_count(g):
 
 
 class Server:
-    def __init__(self, count):
+    def __init__(self, count, boxes_fn=None):
         self.html = fixture(count)
+        self.boxes_fn = boxes_fn
         self.al_calls = []
         self.images = []
         self.active = 0
         self.peak = 0
         self.fail = set()
         self.posts = []  # Frame status saves: (g, label, state).
+        self.label_edits = []  # Label edits: (g, label, items).
         self.hold = asyncio.Event()
         self.hold.set()
 
@@ -81,8 +83,12 @@ class Server:
                 if segment in self.fail:
                     await route.fulfill(status=503, body="{}", content_type="application/json")
                     return
-                frames = {str(i): {"body": [{"box": [k, k, k + 5, k + 5]} for k in range(box_count(segment * SEGMENT + i))]}
-                          for i in range(SEGMENT)}
+                if self.boxes_fn is not None:
+                    frames = {str(i): {"body": [{"box": b} for b in self.boxes_fn(segment * SEGMENT + i)]}
+                              for i in range(SEGMENT)}
+                else:
+                    frames = {str(i): {"body": [{"box": [k, k, k + 5, k + 5]} for k in range(box_count(segment * SEGMENT + i))]}
+                              for i in range(SEGMENT)}
                 await route.fulfill(json={"frames": frames})
             finally:
                 self.active -= 1
@@ -93,13 +99,17 @@ class Server:
             data = route.request.post_data_json
             self.posts.append((int(data["seg"][1:]) * SEGMENT + data["i"], data["label"], data["state"]))
             await route.fulfill(json={})
+        elif url.path == "/api/label_edit":
+            data = route.request.post_data_json
+            self.label_edits.append((int(data["seg"][1:]) * SEGMENT + data["i"], data["label"], data["items"]))
+            await route.fulfill(json={})
         else:
             raise AssertionError(f"Unexpected request: {route.request.method} {url.path}")
 
 
-async def open_page(browser, count=600, current=250, preload=False):
+async def open_page(browser, count=600, current=250, preload=False, boxes_fn=None):
     page = await browser.new_page(viewport={"width": 1200, "height": 820})
-    server = Server(count)
+    server = Server(count, boxes_fn=boxes_fn)
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     await page.route("**/*", server.route)
@@ -453,10 +463,131 @@ async def test_status_actions_follow_filter(browser):
     print("PASS: F1 progress line, part Done all and clip status follow the BBox filter; All restores full counts")
 
 
+async def test_bbox_warn_filter(browser):
+    """Error warning filter (F1, F2, F3): loads full session, respects body multi-box convention,
+    detects dup/count/size/jump/drift outliers, pairs multi-box trajectories by centroid (F3),
+    guards pending warnings when queue drains (F2), and scopes navigation/Ctrl+B/Done all to visible warnings.
+    """
+    normal_driver = [100, 120, 420, 760]
+    normal_passenger = [900, 130, 1210, 750]
+
+    def warn_boxes(g):
+        if g // SEGMENT == NO_AUTO_LABEL_SEGMENT:
+            return []
+        if g == 12:
+            # Duplicate overlapping box on driver.
+            return [normal_driver, [104, 122, 418, 758], normal_passenger]
+        if g == 25:
+            # 1-frame flicker: passenger box missing for a single frame.
+            return [normal_driver]
+        if g == 40:
+            # Area/size outlier on driver box.
+            return [[10, 10, 880, 1050], normal_passenger]
+        if g == 60:
+            # 1-frame temporal jump spike (+110px horizontal jump and back).
+            return [[210, 120, 530, 760], normal_passenger]
+        if g == 171:
+            # Smoothly moving auto-label at frame 171 (IoU >= 0.65 with frame 170).
+            return [[140, 120, 460, 760], normal_passenger]
+        return [normal_driver, normal_passenger]
+
+    page, server, errors = await open_page(browser, count=600, current=12, boxes_fn=warn_boxes)
+    # Simulate static bulk-copied S.ledits on frames 170 and 171 that drifted from auto-label.
+    await page.evaluate("""() => {
+      const drifted = [{box:[360,120,680,760]}, {box:[900,130,1210,750]}];
+      S.ledits[rvKey(170)] = {body: JSON.parse(JSON.stringify(drifted))};
+      S.ledits[rvKey(171)] = {body: JSON.parse(JSON.stringify(drifted))};
+    }""")
+
+    await page.click("#nl-bbox-warn")
+    await counts_ready(page)
+
+    # F2: bboxCountsPendingFor must report true whenever warningsReady is false, even if load queue is empty.
+    assert await page.evaluate("""() => {
+      const NL = window.__notaOrganizerV1;
+      const cache = NL.bboxCountCache();
+      cache.warningsReady = false;
+      const pending = NL.bboxCountsPendingFor([12]);
+      cache.warningsReady = true;
+      return pending;
+    }""") is True
+
+    # F3: vertically stacked 2-box clip whose cx crosses by 2px must pair by centroid distance, not raw x-sort index.
+    assert await page.evaluate("""() => {
+      const NL = window.__notaOrganizerV1;
+      const a = [{cx: 300, cy: 200, box: [250, 150, 350, 250]}, {cx: 301, cy: 600, box: [251, 550, 351, 650]}];
+      const b = [{cx: 301, cy: 600, box: [251, 550, 351, 650]}, {cx: 302, cy: 200, box: [252, 150, 352, 250]}];
+      const matched = NL.matchBoxesToReference(a, b);
+      return matched[0].cy === 200 && matched[1].cy === 600;
+    }""") is True
+
+    # Full-session auto-label segments loaded (<=2 concurrent).
+    assert sorted(server.al_calls) == [0, 1, 2, 3, 4] and server.peak <= 2, (server.al_calls, server.peak)
+    # Normal 2-box body frames are NOT flagged; only the 6 injected warning frames appear.
+    expected_warnings = [12, 25, 40, 60, 170, 171]
+    assert await visible_frames(page) == expected_warnings, await visible_frames(page)
+
+    badges = await page.evaluate("""() => {
+      const out = {};
+      for (const li of document.querySelectorAll('#labList li[data-g]:not([hidden])')) {
+        out[li.dataset.g] = li.querySelector('.nl-warn-badge')?.textContent || '';
+      }
+      return out;
+    }""")
+    assert "dup" in badges["12"], badges
+    assert "count" in badges["25"], badges
+    assert "size" in badges["40"], badges
+    assert "jump" in badges["60"], badges
+    assert "drift" in badges["170"] and "drift" in badges["171"], badges
+
+    # Navigation (D, A, playNext) follows only the warning frames displayed in the sidebar.
+    await page.keyboard.press("d")
+    assert await page.evaluate("S.shownG") == 25
+    await page.keyboard.press("d")
+    assert await page.evaluate("S.shownG") == 40
+    await page.keyboard.press("a")
+    assert await page.evaluate("S.shownG") == 25
+    assert await page.evaluate("playNext(25, 1)") == 40
+    assert await page.evaluate("playNext(60, 1)") == 170
+
+    # Fix frame 12 to normal 2 boxes and use Ctrl+B to copy to the next 2 frames in clip 0.
+    # Because Ctrl+B follows the sidebar filter, the next 2 frames in clip 0 are [25, 40] (NOT 13, 14).
+    await page.evaluate("""() => {
+      S.fstat[rvKey(12)] = {body: {s: 'wip'}};
+      show(12);
+      ED.items = [{box:[100,120,420,760]}, {box:[900,130,1210,750]}];
+      edSave();
+    }""")
+    await page.keyboard.press("Control+b")
+    await page.wait_for_selector("#nl-eye-bulk[open]")
+    await page.fill("#nl-eye-bulk .nl-count", "2")
+    await page.click("#nl-eye-bulk .nl-apply")
+    await page.wait_for_function("!document.querySelector('#nl-eye-bulk').open")
+    assert [g for g, _, _ in server.label_edits] == [25, 40], server.label_edits
+
+    # After fixing frames 12, 25, and 40, the warning filter re-evaluates and leaves only [60, 170, 171].
+    await page.wait_for_function("document.querySelectorAll('#labList li[data-g]:not([hidden])').length === 3")
+    assert await visible_frames(page) == [60, 170, 171]
+
+    # Toolbar Done all marks only the remainingunfinished warning frames listed in the sidebar.
+    server.posts.clear()
+    await done_all(page, server, 3)
+    assert sorted(g for g, _, state in server.posts if state == "done") == [60, 170, 171], server.posts
+
+    # Clicking All clears the warning filter and removes all warning badges.
+    await page.click(".nl-bbox-all")
+    assert await visible_frames(page) == list(range(600))
+    assert await page.evaluate("document.querySelectorAll('.nl-warn-badge').length") == 0
+    assert not errors, errors
+    await page.close()
+    print("PASS: Error warning filter loads session, respects body multi-box, flags anomalies, and scopes nav/Ctrl+B/Done all")
+
+
 async def main():
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=True)
         try:
+            await test_bbox_warn_filter(browser)
             await test_auto_load_window_follows_filter(browser)
             await test_preload_outside_search(browser)
             await test_hidden_frame_after_last_match(browser)

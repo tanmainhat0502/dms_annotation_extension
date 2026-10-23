@@ -29,6 +29,7 @@
         "core.js",
         "styles.js",
         "sidebar.js",
+        "bbox-warn.js",
         "bbox-filter.js",
         "bbox-tools.js",
         "seatbelt-eye.js",

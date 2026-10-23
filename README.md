@@ -52,6 +52,7 @@ Reload your DMS tab and open **Labeling**. Search for a part, expand a clip such
 | --- | --- |
 | Organize frames | Search part names, group frames by clip, and see frame counts and the last edited checkpoint. The clip header stays visible while scrolling; collapsing it keeps that header in view instead of jumping to another part. Navigation follows the filtered list. |
 | Filter by box count | For bbox labels, type exact counts such as `2,3,4` in **BBox** below part search to show only frames with that many boxes. **All** or an empty field shows every frame. Counts include saved edits and update after editing. A progress line below shows how many listed frames are counted, matched, or unknown. `A` / `D`, `Space`, and **auto_load_img** follow the filtered frames. |
+| Filter error warnings (`⚠ Warn`) | Click **⚠ Warn** next to **All** to load all auto-label segments across the session, compute session-wide and clip-temporal bbox anomalies (`dup`, `tiny`, `size`, `ratio`, `pos`, `jump`, `count`, `drift`), and list only flagged frames in the sidebar with reason badges. Multi-box `body` frames are preserved by convention unless they exhibit flicker/dropout or geometric anomalies. All navigation (`A` / `D`, `Space`), copy/paste (`C`, `Ctrl+B`), **Done all**, and **auto_load_img** follow the listed warning frames. |
 | Done all listed frames | **Done all** at the end of the BBox row marks every unfinished frame currently listed in the sidebar Done, after confirmation. Without filters that is every frame of the label; with part search or a BBox filter, only the frames still listed (collapsed clips included). Frames with unknown BBox counts are skipped. |
 | Lock the timeline | Click the padlock to the right of the bottom timeline. When locked, clicking or dragging the timeline cannot jump to another frame. `A` / `D`, `Space`, and sidebar frame selection still work. Click again to unlock; your choice is remembered after reload. |
 | Load images ahead | Click **auto_load_img** to download the current part and the next part that has frames in the sidebar (matching active status and BBox filters, including Done frames when **Show done** is enabled). See their combined image count; **Stop** pauses and keeps downloaded images. |
@@ -78,7 +79,7 @@ Reload your DMS tab and open **Labeling**. Search for a part, expand a clip such
 
 **Clip status example:** **Done → In progress** reopens only Done frames in that clip; existing Not checked and In progress frames stay as they are. The menu shows the source-frame count. No frames change until you choose a destination. **In progress** and **Not checked** work the same way. A source button is disabled when the clip has no frames in that status. Changes affect only the active label and preserve annotations.
 
-**BBox filter:** counts come from auto-labels, which the filter reads per segment only while a count is entered: up to two requests at a time, starting at the current frame and limited to parts matching the part search. Each segment is read once per session and label. Frames whose auto-labels cannot be read stay visible and are reported as unknown. While a BBox filter is active, part **Done all**, clip status buttons, toolbar **Done all**, `Ctrl+B`, and `C` operate only on the filtered frames shown in the sidebar; when **BBox** is empty (**All**), they cover all frames.
+**BBox filter:** counts and warnings come from auto-labels, which the filter reads per segment only while a count or **⚠ Warn** is active: up to two requests at a time, starting at the current frame (limited to parts matching the part search for exact counts, or across all segments in the session for **⚠ Warn**). Each segment is read once per session and label. Frames whose auto-labels cannot be read stay visible and are reported as unknown. While a BBox count or **⚠ Warn** filter is active, part **Done all**, clip status buttons, toolbar **Done all**, `Ctrl+B`, and `C` operate only on the filtered frames shown in the sidebar; when **BBox** is empty (**All**), they cover all frames.
 
 ## Automatic image loading
 
@@ -167,7 +168,7 @@ Search, grouping, and label visibility change only the interface. Annotation edi
 
 | Path | Contents |
 | --- | --- |
-| `extension/` | Extension source (`core.js`, `styles.js`, `sidebar.js`, `bbox-filter.js`, `bbox-tools.js`, `seatbelt-eye.js`, `bulk-dialogs.js`, `content.js`, `preload.js`, `popup.js`); load this folder in Chrome. |
+| `extension/` | Extension source (`core.js`, `styles.js`, `sidebar.js`, `bbox-warn.js`, `bbox-filter.js`, `bbox-tools.js`, `seatbelt-eye.js`, `bulk-dialogs.js`, `content.js`, `preload.js`, `popup.js`); load this folder in Chrome. |
 | `docs/images/` | Installation screenshots used above. |
 | `dist/` | Versioned release ZIPs. |
 | `native-updater/` | Windows and macOS updater source. |

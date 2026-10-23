@@ -134,6 +134,33 @@
         cursor: pointer;
       }
       #${ROOT_ID} .nl-bbox-all[aria-pressed="true"] { border-color: #55aaff; color: #d9f3ff; background: #17384c; }
+      #${ROOT_ID} .nl-bbox-warn {
+        flex: none;
+        height: 27px;
+        padding: 3px 6px;
+        border: 1px solid #8a6528;
+        border-radius: 4px;
+        background: #2b2316;
+        color: #ffd480;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      #${ROOT_ID} .nl-bbox-warn:hover:not(:disabled) { border-color: #f59e0b; background: #3b2e19; }
+      #${ROOT_ID} .nl-bbox-warn[aria-pressed="true"] { border-color: #f59e0b; color: #fff4d6; background: #5c3a10; }
+      #labList li .nl-warn-badge {
+        display: inline-block;
+        margin-right: 5px;
+        padding: 0 4px;
+        border: 1px solid rgba(245, 158, 11, .55);
+        border-radius: 3px;
+        background: rgba(120, 53, 15, .55);
+        color: #fcd34d;
+        font-size: 10px;
+        font-weight: 600;
+        line-height: 1.35;
+        vertical-align: baseline;
+      }
       #${ROOT_ID} .nl-bbox-controls :disabled { opacity: .5; cursor: default; }
       #${ROOT_ID} .nl-done-all {
         flex: none;

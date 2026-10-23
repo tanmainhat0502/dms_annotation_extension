@@ -2,12 +2,13 @@
 
 ## Unreleased
 
+- Add **⚠ Warn** BBox error warning filter (`bbox-warn.js`): loads session auto-labels (`<= 2` concurrent segments), evaluates 4-layer session + clip anomaly rules (`dup`, `tiny`, `size`, `ratio`, `pos`, `jump`, `count`, `drift`) while respecting the multi-box `body` convention, and filters the sidebar to flagged frames with `.nl-warn-badge` reason badges. Navigation (`A` / `D`, `Space`), `C`, `Ctrl+B`, **Done all**, and **auto_load_img** operate strictly on the listed warning frames.
 - Restore toolbar **Done all** and scope sidebar actions to active filters: after confirmation, **Done all** marks every unfinished frame currently listed in the sidebar Done (collapsed clips included), waiting for the listed frames' BBox counts to load and skipping unknown counts. While a BBox filter is entered, part **Done all**, clip status buttons, `Ctrl+B`, and `C` apply only to the filtered frames shown in the sidebar; when **BBox** is empty, they apply to all frames.
 - Show BBox count progress below the **BBox** row while a filter is entered: counted/total listed frames, matches, loaded segments, and unknown counts.
 - Speed up status changes on long sidebars: repaint only rows whose status or edit mark changed and refresh only their clips (about 52 ms to 5 ms per change at 12,000 frames while the current frame is in view). V markers update only the toggled frames instead of every row.
 - Seatbelt Ctrl+B mask copy skips target frames whose mask would not change, so they are not re-saved or switched to In progress.
 - Speed up **auto_load_img** (7.3 s → 3.7 s for 120 frames at 100 ms server latency in a local browser benchmark) and align it with all sidebar filters: start the next download as soon as one finishes instead of waiting 50 ms after the last of each batch, use 4 parallel requests on HTTP/1.1 or 6 on HTTP/2/3, and keep one background request while the viewer loads frames. Download sequentially from the open frame onward, then earlier frames, for all frames shown in the sidebar (including Done frames when **Show done** is enabled), and slide the two-part window when navigating into the second part or when active status/BBox filters hide a part.
-- Modularize the Organizer content scripts into focused domain modules (`core.js`, `styles.js`, `sidebar.js`, `bbox-filter.js`, `bbox-tools.js`, `seatbelt-eye.js`, `bulk-dialogs.js`, `content.js`, `preload.js`) and unify test script injection through `tests/_ext.py`.
+- Modularize the Organizer content scripts into focused domain modules (`core.js`, `styles.js`, `sidebar.js`, `bbox-warn.js`, `bbox-filter.js`, `bbox-tools.js`, `seatbelt-eye.js`, `bulk-dialogs.js`, `content.js`, `preload.js`) and unify test script injection through `tests/_ext.py`.
 
 ## 1.6.37 - 2026-10-22
 
