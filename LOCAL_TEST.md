@@ -1,16 +1,17 @@
-# Manual testing: 1.6.37
+# Manual testing: 1.6.38
 
 Use this checklist to verify cached playback, the timeline lock, bbox editing, sticky clip controls, and image preloading in your DMS environment.
 
 ## Install
 
-1. Extract `dist/NOTA_Labeling_Organizer_Extension_v1.6.37.zip`, or use this repository's `extension` folder.
+1. Extract `dist/NOTA_Labeling_Organizer_Extension_v1.6.38.zip`, or use this repository's `extension` folder.
 2. In `chrome://extensions`, disable the older Organizer version. Click **Load unpacked** and select the folder containing `manifest.json`.
 3. Reload the DMS tab. Open **Labeling**, choose a label, and open a frame.
 4. Find **auto_load_img** and **Stop** directly below the part search field.
 
 ## Review checklist
 
+- Click **⚠ Warn** next to **All** on a bbox label: verify it scans all session segments (up to 2 concurrent requests), displays only flagged frames with `.nl-warn-badge` reason badges (`dup`, `tiny`, `size`, `ratio`, `pos`, `jump`, `count`, `drift`), and keeps normal multi-box `body` frames out of the warning list unless they flicker/drop out or violate geometry rules. Verify `A` / `D`, `Space`, `C`, `Ctrl+B`, **Done all**, and **auto_load_img** operate strictly on the listed warning frames.
 - In **BBox**, enter `2,3,4`, then try `0` and **All**. Combine the box-count filter with part search and status filters. `A` / `D` and `Space` must visit only matching frames, including when the current frame becomes hidden after an edit or filter change. With auto_load_img Ready, play with Space and check the even cadence. Change the BBox filter and verify the image counter/preloaded parts follow the new selection.
 - Open `Ctrl+B`: verify **Label actions** and **Change status** tabs. Select either tab, close with Esc, reopen, and reload DMS: the same tab must remain selected. Switching tabs must not discard a pending box-edge/mask operation. Return to Label actions before testing copy/delete/adjust below.
 - In Change status, test Not checked, In progress, and Done with previous/next frame counts, `end`, and a count larger than the clip. The count must include the current frame, then continue in the selected direction. Only the active label in that clip should change. Hidden/Done frames are eligible, unchanged targets cause no extra saves, and annotation data stays unchanged. Label actions must still exclude the source frame.
@@ -22,7 +23,7 @@ Use this checklist to verify cached playback, the timeline lock, bbox editing, s
 - Find **Done all** below a part's frame count in the left column. Scroll up/down inside a long part and resize the window: the checkbox and count should remain visible. Move into another part and verify its control takes over.
 - Tick Done all on a part you intend to complete. The count shows save progress, then all its clips/frames become Done. Untick it: all frames become In progress. Other parts, labels, and annotation boxes must stay unchanged. Check collapsed clips, a partially Done part (dash), and keyboard Space on the focused checkbox.
 - With **Show done** unchecked, the action must still cover the complete current-label part. Completed parts disappear; check **Show done** to see and untick the part again. If a request fails, the checkbox must reflect only successful saves and show an error; retry Done to save the remaining frames. Switching label/session during saving must stop new queued requests.
-- With auto_load_img running, Done all must advance its two-part cache only after the whole part's Done saves succeed. Test that opening/closing clips and scrolling during saves keep the control accessible.
+- With auto_load_img running and **Show done** unchecked, Done all must advance its two-part cache only after the whole part's Done saves succeed (with **Show done** checked, the Done part remains in the sidebar and stays cached until you move to the next part or hide Done frames). Test that opening/closing clips and scrolling during saves keep the control accessible.
 - Place a hand box against the bottom image edge. Drag its bottom-right handle horizontally while moving slightly in and out of the black margin: the width should keep following the pointer without freezing or jumping on re-entry. Release outside: the saved bottom edge should be clipped to the image.
 - Grab the outside half of a boundary handle. Repeat at all four image edges, while zoomed/panned, and with other bbox labels. Check that the box saves once on release, `Z` restores it for body/hand/eye, and losing window focus during a drag discards that unsaved drag. Viewer controls and empty-margin clicks must not start a bbox edit.
 - On body/hand/eye, press `C` in frame 2: all boxes should come from frame 1. Edit and save frame 3, then press C in frame 4: it should use the edited boxes. Leave frame 5 unchanged and press C in frame 6: it should use frame 5. Leave frame 7 empty and press C in frame 8: it should use frame 6.
@@ -52,7 +53,7 @@ Use this checklist to verify cached playback, the timeline lock, bbox editing, s
 - Leave playback paused. The image count should continue increasing without further input.
 - Click **Stop**. The count should stabilize; completed images remain available. Click **auto_load_img** to continue missing images without reloading the completed ones.
 - Once the counter says **Ready**, revisit downloaded frames. Network waiting should be reduced; image decoding and other DMS requests can still take time.
-- Complete the last unfinished clip in part 1. Once **all frames** are saved as Done, the names change to parts 2 and 3. Part 2's stored images remain; part 3 fills the available slot.
+- Complete the last unfinished clip in part 1 with **Show done** unchecked (or navigate into part 2 while **Show done** is checked). The names change to parts 2 and 3. Part 2's stored images remain; part 3 fills the available slot.
 - If earlier frames in part 1 are unfinished, marking just its last clip Done must not advance the pair.
 - Repeat with part 2, then test the last part (only one part remains).
 - Stop, open a different part, then start. The pair should start at the newly opened part.
@@ -79,6 +80,7 @@ python tests/test_bbox_drag.py
 python tests/test_part_done.py
 python tests/test_bbox_adjust.py
 python tests/test_status_controls.py
+python tests/test_sidebar_status.py
 python tests/test_filter_scroll.py
 python tests/test_bulk_status.py
 ```

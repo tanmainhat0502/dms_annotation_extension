@@ -3,6 +3,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
+from _ext import read_organizer_script
 from test_bbox_shortcuts import HTML as SHORTCUT_HTML, LABELS
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,7 +42,7 @@ def main():
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.route("**/*", lambda route: route.fulfill(body=HTML, content_type="text/html"))
         page.goto("https://ntt.dev.nota.ai/")
-        page.add_script_tag(content=(ROOT / "extension/content.js").read_text(encoding="utf-8"))
+        page.add_script_tag(content=read_organizer_script())
         page.wait_for_selector("#nota-labeling-organizer-v1")
 
         def start(label="hand"):

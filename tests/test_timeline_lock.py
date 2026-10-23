@@ -3,10 +3,11 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
+from _ext import read_organizer_script
 from test_sidebar_scroll import HTML as SIDEBAR_HTML
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = (ROOT / 'extension/content.js').read_text(encoding='utf-8')
+SCRIPT = read_organizer_script()
 NATIVE_CLICK = """
 bar.addEventListener("click", (e) => {
   if (!S.sess || (typeof labEmpty === "function" && labEmpty())) return;

@@ -8,6 +8,7 @@ import os
 from collections import Counter
 from pathlib import Path
 
+from _ext import read_organizer_script
 from playwright.async_api import async_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -133,7 +134,7 @@ async def test_window_rotation(browser):
     await ready_count(page, 6)
     assert [g for _, g in server.calls[:3]] == [0, 1, 2], server.calls
     assert Counter(g for _, g in server.calls) == Counter(range(6))
-    assert server.peak <= 3
+    assert server.peak <= 4, "HTTP/1.1 fixture: at most 4 background requests"
     assert await page.evaluate("decodes") == 0, "Background preloading must not decode images into RAM"
     assert await page.evaluate("S.frames.size") == 0
     # Reading a downloaded image, even after its bitmap is evicted, avoids HTTP.
@@ -187,19 +188,22 @@ async def test_stop_resume(browser):
     context, page, server = await setup(browser)
     server.delay = 0.25
     await page.click("#start_auto_load")
-    await page.wait_for_function("document.querySelector('.nl-load-count').textContent.includes('3 / 6')")
+    await page.wait_for_function(r"/^Loading [1-5] \/ 6/.test(document.querySelector('.nl-load-count').textContent)")
     await page.click("#stop_auto_load")
     await page.wait_for_timeout(500)
     before = len(server.calls)
     count = await page.locator(".nl-load-count").inner_text()
-    assert "Stopped" in count and "3 / 6" in count, count
+    loaded = int(count.split()[1])
+    assert "Stopped" in count and 0 < loaded < 6, count
     await page.wait_for_timeout(700)
     assert len(server.calls) == before, "Stop must not schedule new background requests"
-    assert len(await stored(page)) == 3
+    rows = await stored(page)
+    assert len(rows) == loaded
+    kept = {int(row["url"].split("&i=")[1].split("&")[0]) for row in rows}
     await page.click("#start_auto_load")
     await ready_count(page, 6)
     counts = Counter(g for _, g in server.calls)
-    assert all(counts[g] == 1 for g in range(3)), counts
+    assert all(counts[g] == 1 for g in kept), counts
     assert len(await stored(page)) == 6
     # Immediate Stop/Start cannot poison resumed work with an old AbortError.
     await page.evaluate("S.shownG=6; S.g=6")
@@ -210,6 +214,33 @@ async def test_stop_resume(browser):
     assert "failed" not in await page.locator(".nl-load-count").inner_text()
     await context.close()
     print("PASS: Stop preserves completed downloads, restart fetches missing images, rapid Stop/Start")
+
+
+async def test_priority_order(browser):
+    """F1: sequential order from open frame; Done parts load when visible and slide when navigating to the next part."""
+    context, page, server = await setup(browser)
+    server.hold = asyncio.Event()
+    # Open frame 1 of part 1 (frames 0-2), with frame 2 already Done.
+    await page.evaluate("S.onlyTodo=false; S.fstat['body:2']='done'; S.shownG=1; S.g=1")
+    await page.click("#start_auto_load")
+    while len(server.calls) < 4:
+        await asyncio.sleep(0.02)
+    assert [g for _, g in server.calls[:4]] == [1, 2, 0, 3], server.calls
+    server.hold.set()
+    await ready_count(page, 6)
+    await page.click("#stop_auto_load")
+    await page.evaluate("S.fstat['body:0']='done'; S.fstat['body:1']='done'")
+    await page.click("#start_auto_load")
+    await ready_count(page, 6)
+    assert (await page.locator(".nl-load-parts").inner_text()) == "Other + Phone"
+    # F1: Navigating into the second part slides the window to Phone + Bottle even when Other stays visible.
+    await page.evaluate("S.shownG=3; S.g=3")
+    await page.wait_for_timeout(650)
+    assert (await page.locator(".nl-load-parts").inner_text()) == "Phone + Bottle"
+    await ready_count(page, 6)
+    assert Counter(g for _, g in server.calls) == Counter(range(9))
+    await context.close()
+    print("PASS: sequential order from open frame; Done frames and Done parts load when visible in sidebar")
 
 
 async def test_navigation_and_scope(browser):
@@ -331,7 +362,7 @@ async def test_organizer_integration(browser):
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     await page.goto("https://ntt.dev.nota.ai/")
-    await page.add_script_tag(content=(ROOT / "extension" / "content.js").read_text(encoding="utf-8"))
+    await page.add_script_tag(content=read_organizer_script())
     await page.add_script_tag(content=SCRIPT)
     await page.wait_for_selector(".nl-organized")
     await page.click("#start_auto_load")
@@ -357,6 +388,7 @@ async def main():
         try:
             await test_window_rotation(browser)
             await test_stop_resume(browser)
+            await test_priority_order(browser)
             await test_navigation_and_scope(browser)
             await test_failures(browser)
             await test_organizer_integration(browser)

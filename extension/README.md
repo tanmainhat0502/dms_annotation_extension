@@ -1,6 +1,6 @@
 # NOTA Labeling Organizer — usage guide
 
-**Version 1.6.37 · English**
+**Version 1.6.38 · English**
 
 For installation screenshots and the complete shortcut tables, see the [GitHub README](https://github.com/tanmainhat0502/dms_annotation_extension#readme).
 
@@ -15,7 +15,9 @@ For installation screenshots and the complete shortcut tables, see the [GitHub R
 
 Playback reuses the frame-list index and updates only the previous/current rows to reduce stuttering on large lists, including when images are cached. Filter, label, session, and list changes refresh this index automatically.
 
-For bbox labels, the **BBox** field below part search filters frames by exact box count for the selected label. Enter `2,3,4` to show frames with exactly 2, 3, or 4 boxes; click **All** or clear the field to show every frame. Counts include saved edits and refresh after an edit or Ctrl+B. `A` / `D` and `Space` follow the filtered frames. The filter reads auto-labels only while a count is entered, at most two segments at a time, starting at the current frame and limited to parts matching the search. Frames whose auto-labels cannot be read stay visible and are reported as unknown.
+For bbox labels, the **BBox** field below part search filters frames by exact box count for the selected label. Enter `2,3,4` to show frames with exactly 2, 3, or 4 boxes; click **⚠ Warn** to scan the full session and show only frames with likely bbox errors (`dup`, `tiny`, `size`, `ratio`, `pos`, `jump`, `count`, `drift`, while preserving normal multi-box `body` frames); click **All** or clear the field to show every frame. Counts and warnings include saved edits and refresh after an edit or Ctrl+B. `A` / `D` and `Space` follow the filtered frames. The filter reads auto-labels only while a count or warning filter is active, at most two segments at a time, starting at the current frame. Frames whose auto-labels cannot be read stay visible and are reported as unknown. A progress line below the field shows counted, matched, and unknown listed frames while counts load.
+
+**Done all** at the end of the BBox row marks every unfinished frame currently listed in the sidebar Done, after confirmation: every frame of the label without filters, or only the frames still listed after part search and the BBox filter (collapsed clips included). Frames with unknown BBox counts are skipped. While a BBox filter is entered, part **Done all**, clip status buttons, `Ctrl+B`, and `C` also apply only to the filtered frames shown in the sidebar; when **BBox** is empty (**All**), they apply to all frames.
 
 To prevent accidental jumps, click the **padlock to the right of the bottom timeline**. A closed, gold lock blocks clicks and drags on the timeline; the progress display, `A` / `D`, `Space`, and sidebar frame selection still work. Click the lock again to allow timeline navigation. The timeline starts unlocked and remembers your choice after a page reload.
 
@@ -35,21 +37,19 @@ Collapsing a clip keeps its header in view instead of jumping to another part, i
 
 ## Load images while you work
 
-Click **auto_load_img** below the part search box. It downloads the current part and the next unfinished part, using up to three background requests. The progress counter is the number of images stored / all images in those two parts. Editing and navigation remain available; loading continues while you pause playback or stop interacting.
+Click **auto_load_img** below the part search box. It downloads the current part and the next part that has frames in the sidebar, using up to four background requests (six over HTTP/2 or HTTP/3). Loading runs sequentially from the open frame to the end of the part, then fills earlier frames, including Done frames when **Show done** is enabled. The progress counter is the number of images stored / all sidebar-matching images in those two parts. Editing and navigation remain available; loading continues while you pause playback or stop interacting.
 
-When all frames in the first part are saved as Done, the extension releases that part's cache and loads the next unfinished part: **1+2 → 2+3 → 3+4**. A failed Done save does not advance the pair. The last part loads alone.
+When you move into the second part, or when all frames in the first part are hidden from the sidebar (for example, saved as Done while **Show done** is off), the extension releases the first part's cache and loads the next matching part: **1+2 → 2+3 → 3+4**. A failed Done save does not advance the pair. The last matching part loads alone.
 
-**Stop** cancels background requests and keeps completed images. Click **auto_load_img** again to fill the current part and the next unfinished part, keeping any already loaded images in that pair. This also retries failed images. Opening a part outside the pair while the loader is running starts a new pair there.
+**Stop** cancels background requests and keeps completed images. Click **auto_load_img** again to fill the current part and the next matching part, keeping any already loaded images in that pair. This also retries failed images. Navigating to another part while the loader is running slides the two-part window to start at that part.
 
 Images are stored compressed in local browser storage; background loading does not decode thousands of bitmaps into RAM. Normal viewing uses those stored images, and `A` / `D` prepare up to three nearby frames. Some decoding or annotation loading delay may remain.
 
 In Labeling, `Space` plays the selected list at an even **10 frames/second at 1×**. The speed control still applies, including the viewer's frame stepping above 2×. Source timestamp gaps/repeats do not interrupt the cadence. The next image is requested first, with up to three following images prepared in advance and at most four outstanding viewer image loads started by this loop. Slow decoding/rendering delays playback instead of triggering a burst of overdue frames. Pause/resume and changing labels or sessions discard stale playback results. Review modes keep their original player.
 
-The three-request background limit applies per tab; there is no fixed images-per-second limit. Speed and server load depend on the connection, server capacity, and number of users or tabs loading images.
+The background limit applies per tab and drops to one request while the viewer fetches frames (none while a status saves); there is no fixed images-per-second limit. Speed and server load depend on the connection, server capacity, and number of users or tabs loading images.
 
-The pair uses the complete parts for the current label, even when the sidebar is filtered or Done frames are hidden. Changing session, label, image size/quality, leaving Labeling, or reloading the tab clears the preloader's cache. No annotation data is changed by preloading.
-
-With a **BBox** filter, only frames the filter shows are downloaded and counted. Frames whose counts are still loading wait until they are known. A part is complete for loading once all its filtered frames are Done. Changing the filter keeps already downloaded images.
+The pair includes every frame in those two parts that matches the active status filters (**Show done**, **Show in progress**, **Show not checked**) and the **BBox** filter. With a **BBox** filter, frames whose counts are still loading wait until they are known. Changing status or BBox filters keeps already downloaded images and updates the two-part window automatically. Changing session, label, image size/quality, leaving Labeling, or reloading the tab clears the preloader's cache. No annotation data is changed by preloading.
 
 ## Bulk actions: Ctrl+B
 

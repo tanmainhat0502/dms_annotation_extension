@@ -2,6 +2,7 @@
 import copy
 from pathlib import Path
 
+from _ext import read_organizer_script
 from playwright.sync_api import sync_playwright
 
 
@@ -120,7 +121,7 @@ edge_cases = [
 
 
 def main():
-    content = (Path(__file__).resolve().parents[1] / "extension" / "content.js").read_text(encoding="utf-8")
+    content = read_organizer_script()
     guard = '  if (!ALLOWED_ORIGINS.has(location.origin) || document.getElementById(ROOT_ID)) return;'
     assert content.count(guard) == 1
     # Expose the actual production function on about:blank. The origin guard
