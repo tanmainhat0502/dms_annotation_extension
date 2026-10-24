@@ -383,6 +383,8 @@
         font-size: 10px;
         font-weight: 700;
       }
+      #labList li.nl-range-start-frame { box-shadow: inset 3px 0 0 #64dc9b; }
+      #labList .nl-range-mark { flex: none; color: #64dc9b; font-size: 10px; font-weight: 700; }
       #labList .nl-clip > ul { width: 100%; }
       #labList .nl-empty-filter {
         margin: 10px 7px;
@@ -521,6 +523,8 @@
         pointer-events: auto;
       }
       #nl-marked-frames button[hidden] { display: none; }
+      #nl-marked-frames .nl-range-start-badge { color: #64dc9b; font-weight: 700; }
+      #nl-marked-frames .nl-range-start-badge[hidden] { display: none; }
       .nl-eye-group-hint {
         margin-top: 7px;
         padding: 7px 8px;

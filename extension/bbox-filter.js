@@ -125,6 +125,7 @@
     if (!markedScopeMatches()) {
       state.markedFrames.clear();
       state.bboxMarkedFrames.clear();
+      state.rangeStart = null;
       state.markedScope = currentLabelScope();
       state.bboxMarkedScope = state.markedScope;
     }
@@ -192,6 +193,30 @@
     }
   }
 
+  function syncRangeMarker() {
+    const previous = state.rangeRow;
+    const g = state.rangeStart;
+    const row = Number.isInteger(g)
+      ? previous?.isConnected && Number(previous.dataset.g) === g
+        ? previous
+        : state.list?.querySelector(`li[data-g="${g}"]`)
+      : null;
+    if (previous && previous !== row) {
+      previous.querySelector(".nl-range-mark")?.remove();
+      previous.classList.remove("nl-range-start-frame");
+    }
+    state.rangeRow = row || null;
+    if (!row) return;
+    row.classList.add("nl-range-start-frame");
+    if (!row.querySelector(".nl-range-mark")) {
+      const marker = document.createElement("span");
+      marker.className = "nl-range-mark";
+      marker.textContent = "✓ G";
+      marker.title = "Start of the Ctrl+B range (press G again to clear)";
+      insertBeforeFrameName(row, marker);
+    }
+  }
+
   function updateMarkedUI() {
     const bboxMode = quickBboxReady();
     const ready = bboxMode ? syncBboxMarkedScope() : syncMarkedScope();
@@ -201,6 +226,7 @@
     }
     const selectedFrames = bboxMode ? state.bboxMarkedFrames : state.markedFrames;
     syncFrameMarkers(selectedFrames, bboxMode);
+    syncRangeMarker();
     if (!state.markedBadge) return;
     const count = selectedFrames.size;
     state.markedBadge.hidden = false;
@@ -209,7 +235,21 @@
       ? `${count} ${S.labelSel} frames marked · V`
       : `${count} selected · V`;
     state.markedBadge.querySelector("button").hidden = count === 0;
+    const range = state.markedBadge.querySelector(".nl-range-start-badge");
+    range.hidden = !Number.isInteger(state.rangeStart);
+    if (!range.hidden) range.textContent = "✓ G start";
     positionMarkedBadge();
+  }
+
+  function toggleRangeStart() {
+    if (state.operationBusy || anyBulkDialogOpen() || !syncMarkedScope()) return;
+    const g = Number(S.shownG);
+    if (!Number.isInteger(g) || !S.lseq?.includes(g)) return;
+    state.rangeStart = state.rangeStart === g ? null : g;
+    updateMarkedUI();
+    notify(state.rangeStart === null
+      ? "G range start cleared"
+      : "G range start set here · Ctrl+B → From G to current frame");
   }
 
   function clearMarkedFrames() {
@@ -240,7 +280,7 @@
     const badge = document.createElement("div");
     badge.id = "nl-marked-frames";
     badge.dataset.count = "0";
-    badge.innerHTML = `<span class="nl-mark-box">✓</span><b>0 selected · V</b><button type="button" hidden>Clear selection</button>`;
+    badge.innerHTML = `<span class="nl-mark-box">✓</span><b>0 selected · V</b><button type="button" hidden>Clear selection</button><span class="nl-range-start-badge" hidden></span>`;
     badge.querySelector("button").addEventListener("click", clearMarkedFrames);
     document.body.appendChild(badge);
     state.markedBadge = badge;
@@ -872,7 +912,7 @@
   Object.assign(NL, {
     buildToolbar, markedScopeMatches, bboxMarkedScopeMatches, syncMarkedScope,
     syncBboxMarkedScope, positionMarkedBadge, setFrameMarker, syncFrameMarkers, updateMarkedUI,
-    clearMarkedFrames, toggleMarkedFrame, buildMarkedBadge, closeClipStatusMenu,
+    clearMarkedFrames, toggleMarkedFrame, toggleRangeStart, buildMarkedBadge, closeClipStatusMenu,
     scheduleCloseClipStatusMenu, openClipStatusMenu, setClipSourceState, setWholePartState,
     sidebarUnfinishedFrames, doneAllSidebarFrames, bboxFilterSupported, bboxCountCache,
     countValidBoxes, bboxCountForFrame, bboxFilterWants, bboxLoadFor,

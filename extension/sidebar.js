@@ -1077,6 +1077,7 @@
     cancelBboxLoads();
     if (state.bboxProgressWrap) state.bboxProgressWrap.hidden = true;
     state.markedRows.clear();
+    state.rangeRow = null;
     state.applying = true;
     try {
       for (const row of state.list.querySelectorAll(":scope > .grp.nl-organized")) {
@@ -1086,8 +1087,9 @@
         for (const li of clips.querySelectorAll("li")) {
           li.querySelectorAll(".nl-checkpoint").forEach((marker) => marker.remove());
           li.querySelectorAll(".nl-frame-mark").forEach((marker) => marker.remove());
+          li.querySelectorAll(".nl-range-mark").forEach((marker) => marker.remove());
           li.querySelectorAll(".nl-warn-badge").forEach((marker) => marker.remove());
-          li.classList.remove("nl-marked-frame");
+          li.classList.remove("nl-marked-frame", "nl-range-start-frame");
           li.hidden = false;
           ul.appendChild(li);
         }

@@ -6,7 +6,7 @@
   const bboxCountForFrame = (...args) => NL.bboxCountForFrame(...args);
   const scheduleBboxFilterRefresh = (...args) => NL.scheduleBboxFilterRefresh(...args);
 
-  const VERSION = "1.6.44";
+  const VERSION = "1.6.45";
 
   const ROOT_ID = "nota-labeling-organizer-v1";
 
@@ -119,6 +119,8 @@
     bulkStatusValue: "wip",
     markedFrames: new Set(),
     markedScope: null,
+    rangeStart: null,
+    rangeRow: null,
     bboxMarkedFrames: new Set(),
     bboxMarkedScope: null,
     markedBadge: null,

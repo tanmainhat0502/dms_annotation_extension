@@ -147,6 +147,25 @@
     return state.markedFrames;
   }
 
+  function selectedGRangeTargets(context, includeCurrent) {
+    syncMarkedScope();
+    if (!Number.isInteger(state.rangeStart)) {
+      return { targets: [], error: "No G start frame. Close this dialog and press G on the first frame." };
+    }
+    if (!context || context.sourceIndex < 0) {
+      return { targets: [], error: "Open a frame in the current label's clip first." };
+    }
+    const startIndex = context.frames.indexOf(state.rangeStart);
+    if (startIndex < 0) {
+      return { targets: [], error: "The G start frame is outside this clip or the current BBox filter." };
+    }
+    const from = Math.min(startIndex, context.sourceIndex);
+    const to = Math.max(startIndex, context.sourceIndex);
+    const targets = context.frames.slice(from, to + 1)
+      .filter((g) => includeCurrent || g !== context.source);
+    return { targets, error: targets.length ? "" : "G is on the current frame. Move to another frame before applying a label action." };
+  }
+
   function prepareBulkStatusContext() {
     const allowed = bulkStatusFrames();
     const source = Number(S.shownG);
@@ -209,6 +228,7 @@
         <button type="button" data-status-direction="before">← Previous frames</button>
         <button type="button" data-status-direction="after">Next frames →</button>
         <button type="button" data-status-direction="marked">◆ Marked frames</button>
+        <button type="button" data-status-direction="range">✓ From G to current frame</button>
       </div>
       <span class="nl-label">Set status to</span>
       <div class="nl-scope">
@@ -292,6 +312,7 @@
       const targets = Array.from(bulkMarkedFrames()).filter((g) => context.allowed.has(g)).sort((a, b) => a - b);
       return { targets, error: targets.length ? "" : "No frames marked. Close this dialog and press V to mark frames." };
     }
+    if (state.bulkStatusDirection === "range") return selectedGRangeTargets(context, true);
     if (context.sourceIndex < 0) return { targets: [], error: "Open a frame in the current label's clip first." };
     // Status counts include the frame currently being viewed. Label actions
     // use their own target selectors and continue to exclude the source frame.
@@ -313,7 +334,7 @@
     }
     const marked = Array.from(bulkMarkedFrames()).filter((g) => context.allowed.has(g)).length;
     dialog.querySelector('[data-status-direction="marked"]').textContent = `◆ Marked frames (${marked})`;
-    dialog.querySelector(".nl-status-count").disabled = state.bulkStatusDirection === "marked";
+    dialog.querySelector(".nl-status-count").disabled = ["marked", "range"].includes(state.bulkStatusDirection);
     dialog.querySelector(`.nl-status-panel input[value="${state.bulkStatusValue}"]`).checked = true;
     dialog.querySelector(".nl-status-sub").textContent =
       `Label: ${genericLabelName(context.label)} · ${context.clip}. Existing annotations are preserved.`;
@@ -327,6 +348,8 @@
       (unchanged ? ` · ${unchanged} already have this status` : "") + ". " +
       (state.bulkStatusDirection === "marked"
         ? "Includes the current frame if marked; marked frames may span clips."
+        : state.bulkStatusDirection === "range"
+          ? "From G to this frame, inclusive, within this clip. No count needed."
         : state.bboxActive
           ? "Within this clip's frames shown by the BBox filter, including the current frame."
           : "Within this clip, including the current frame; includes frames hidden by status filters.");
@@ -405,6 +428,7 @@
           <button type="button" data-eye-direction="before">← Previous frames</button>
           <button type="button" data-eye-direction="after">Next frames →</button>
           <button type="button" data-eye-direction="marked" class="nl-marked-target" hidden>◆ Marked frames</button>
+          <button type="button" data-eye-direction="range">✓ From G to current frame</button>
         </div>
 
         <span class="nl-label nl-source-label">Source objects</span>
@@ -483,6 +507,7 @@
         ? { targets, error: "" }
         : { targets: [], error: "No target frames marked yet. Press V to mark frames." };
     }
+    if (state.eyeBulkDirection === "range") return selectedGRangeTargets(context, false);
     const candidates = state.eyeBulkDirection === "before"
       ? context.frames.slice(0, context.sourceIndex).reverse()
       : context.frames.slice(context.sourceIndex + 1);
@@ -509,7 +534,10 @@
       : operation?.type === "edge"
         ? `Set the ${operation.edge} ${context.labelName} edge to ${Number(operation.value).toFixed(1)} px`
         : `Copy ${sourceCount} ${eyeMode ? "eye groups" : boxMode ? "boxes" : "face 7pt groups"}`;
-    return `${actionText} across ${picked.targets.length} ${directionText} frames` +
+    const targetText = state.eyeBulkDirection === "range"
+      ? `${picked.targets.length} frames from G to the current frame (source excluded)`
+      : `${picked.targets.length} ${directionText} frames`;
+    return `${actionText} across ${targetText}` +
       (operation?.type === "edge" ? " · keep the target box's other three edges; leave frames without a matching box unchanged" :
         operationMode ? " · keep other boxes and edges" : ` · ${writeText}`) +
       (skipped ? ` · skip ${skipped} Done frames` : "") + ". Up to 4 requests run at a time.";
@@ -532,7 +560,7 @@
       : 0;
     markedButton.textContent = `◆ Marked frames (${visibleMarkedCount})`;
     if (!quickMode && state.eyeBulkDirection === "marked") state.eyeBulkDirection = "after";
-    dialog.querySelector(".nl-count").disabled = state.eyeBulkDirection === "marked";
+    dialog.querySelector(".nl-count").disabled = ["marked", "range"].includes(state.eyeBulkDirection);
     dialog.querySelector(".nl-eye-selected-option").hidden = !hasSelected;
     const checked = dialog.querySelector('input[name="nl-eye-scope"]:checked');
     if (!checked || (checked.value === "selected" && !hasSelected)) {
@@ -613,6 +641,7 @@
         <div class="nl-choice nl-directions nl-mask-only">
           <button type="button" data-direction="before">← Previous frames</button>
           <button type="button" data-direction="after">Next frames →</button>
+          <button type="button" data-direction="range">✓ From G to current frame</button>
         </div>
 
         <span class="nl-label nl-scope-label nl-mask-only">Mask content to apply</span>
@@ -679,6 +708,7 @@
   function selectedBulkTargets() {
     const context = state.bulkContext;
     if (!context) return { targets: [], error: "Could not identify the current clip." };
+    if (state.bulkDirection === "range") return selectedGRangeTargets(context, false);
     const candidates = state.bulkDirection === "before"
       ? context.frames.slice(0, context.sourceIndex).reverse()
       : context.frames.slice(context.sourceIndex + 1);
@@ -697,6 +727,7 @@
     for (const button of dialog.querySelectorAll("[data-direction]")) {
       button.classList.toggle("on", button.dataset.direction === state.bulkDirection);
     }
+    dialog.querySelector(".nl-count").disabled = state.bulkDirection === "range";
 
     const hasPatch = patchMatchesContext(context);
     const subtract = hasPatch && state.lastPatch.operation === "subtract";
@@ -736,7 +767,7 @@
       const skipped = picked.targets.filter((g) => frameState(g) === "done").length;
       const action = subtract ? (samPatch ? "Erase the SAM3 region on" : "Erase the red region on") :
         (samPatch && dialog.querySelector('input[name="nl-scope"]:checked')?.value === "patch" ? "Apply the latest added mask area to" : "Apply the mask to");
-      preview.textContent = `${action} ${picked.targets.length} target frames · ${state.bulkDirection === "after" ? "after" : "before"} the current frame` +
+      preview.textContent = `${action} ${picked.targets.length} target frames · ${state.bulkDirection === "range" ? "between G and" : state.bulkDirection === "after" ? "after" : "before"} the current frame` +
         (skipped ? ` · skip ${skipped} Done frames` : "") + ". Up to 4 requests run at a time.";
     }
     dialog.querySelector(".nl-apply").disabled = Boolean(blocked || picked.error) || emptySamPatch || state.operationBusy;

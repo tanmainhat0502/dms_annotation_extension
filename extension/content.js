@@ -21,7 +21,7 @@
     partStatusMatches, pasteQuickBboxFromClipboard, positionMarkedBadge, quickBboxReady,
     refreshStatusControls, releaseBboxPointer, restoreNativeGroups,
     restorePlaybackSidebarPosition, samAcceptAvailable,
-    setBboxMode, setManualMode, state, statusFilterRestricted, toggleMarkedFrame,
+    setBboxMode, setManualMode, state, statusFilterRestricted, toggleMarkedFrame, toggleRangeStart,
     undoQuickBbox, undoSeatbelt, updateMarkedUI
   } = NL;
 
@@ -154,9 +154,15 @@
       if (!event.repeat) toggleMarkedFrame();
       return;
     }
+    if (event.code === "KeyG" && noModifiers && !event.shiftKey && !event.isComposing &&
+        pageLabelingReady() && !anyBulkDialogOpen()) {
+      consumeKeyEvent(event);
+      if (!event.repeat) toggleRangeStart();
+      return;
+    }
     if (hasCtrlOrMeta && !event.altKey && !event.shiftKey && event.code === "KeyB" && pageLabelingReady() &&
         (S.labelSel === "seatbelt" || S.labelSel === "eye_lmk" || GENERIC_COPY_LABELS.has(S.labelSel) ||
-          (markedScopeMatches() && state.markedFrames.size))) {
+          (markedScopeMatches() && (state.markedFrames.size || Number.isInteger(state.rangeStart))))) {
       consumeKeyEvent(event);
       if (!event.repeat) openBulkDialog();
       return;

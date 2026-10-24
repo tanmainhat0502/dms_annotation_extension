@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.45 - 2026-10-24
+
+- Add `G` to mark a range start. `Ctrl+B` now offers **From G to current frame** in both **Change status** and **Label actions**, avoiding manual frame counts. Status includes both endpoints; label actions exclude the current source frame. The range stays within one clip and works in either direction.
+- Show the G start beside the canvas V counter and in the frame list. Press `G` again to clear or move it; changing session or label clears the mark. Add browser coverage for status and bbox, landmark and seatbelt label actions.
+
 ## 1.6.44 - 2026-10-24
 
 - Keep the sidebar at the user's scroll position for the entire `Space` playback session, including asynchronous annotation repaints, sidebar rebuilds, and clip grouping. The highlighted frame still advances; a deliberate `A` / `D` or frame click after pausing still reveals its destination.

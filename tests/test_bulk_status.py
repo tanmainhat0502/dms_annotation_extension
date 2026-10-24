@@ -21,7 +21,7 @@ async def open_bulk(page, tab=None):
 async def choose_status(page, value, direction='after', count='1'):
     await page.locator(DIALOG + f' [data-status-direction="{direction}"]').click()
     await page.locator(DIALOG + f' .nl-status-panel input[value="{value}"]').check()
-    if direction != 'marked':
+    if direction not in ('marked', 'range'):
         await page.locator(DIALOG + ' .nl-status-count').fill(count)
 
 
@@ -37,6 +37,95 @@ async def mark(page, frames):
         await page.evaluate('document.activeElement?.blur()')
         await page.keyboard.press('v')
     await settle(page)
+
+
+async def set_g(page, frame):
+    await page.evaluate('g=>show(g)', frame)
+    await page.evaluate('document.activeElement?.blur()')
+    await page.keyboard.press('g')
+    await settle(page)
+
+
+async def test_g_range(browser):
+    page, server, errors = await setup(browser)
+    await set_g(page, 225)
+    assert await page.locator('#nl-marked-frames .nl-range-start-badge').inner_text() == '✓ G start'
+    assert await page.locator('li[data-g="225"] .nl-range-mark').count() == 1
+    await page.evaluate('show(228)')
+    await open_bulk(page, 'status')
+    await choose_status(page, 'done', 'range')
+    assert await page.locator(DIALOG + ' .nl-status-count').is_disabled()
+    assert '4 frames' in await page.locator(DIALOG + ' .nl-status-preview').inner_text()
+    states = await page.evaluate('Array.from({length:4},(_,i)=>fsGet(225+i))')
+    await apply(page)
+    assert {p['i'] for p in server.posts} == {225+i for i, value in enumerate(states) if value != 'done'}
+    assert await page.locator('#nl-marked-frames .nl-range-start-badge').is_visible()
+    server.posts.clear()
+    await page.evaluate('show(227)')
+    await open_bulk(page, 'status')
+    await choose_status(page, 'todo', 'range')
+    await apply(page)
+    assert {p['i'] for p in server.posts} == {225, 226, 227}
+    server.posts.clear()
+    await set_g(page, 228)  # Move the G start; the range also works backward.
+    await page.evaluate('show(225)')
+    await open_bulk(page, 'status')
+    await choose_status(page, 'done', 'range')
+    await apply(page)
+    assert {p['i'] for p in server.posts} == {225, 226, 227}
+    await page.evaluate('show(250)')  # Another clip cannot silently consume the G range.
+    await open_bulk(page, 'status')
+    await choose_status(page, 'done', 'range')
+    assert await page.locator(DIALOG + ' .nl-status-apply').is_disabled()
+    assert 'outside this clip' in await page.locator(DIALOG + ' .nl-status-preview').inner_text()
+    await page.keyboard.press('Escape')
+    await set_g(page, 228)
+    assert not await page.locator('#nl-marked-frames .nl-range-start-badge').is_visible()
+    await set_g(page, 225)
+    await page.evaluate("S.labelSel='hand';buildSeq();renderLabList()")
+    await settle(page)
+    assert not await page.locator('#nl-marked-frames .nl-range-start-badge').is_visible()
+    assert not errors, errors
+    await page.close()
+    print('PASS: G range includes both endpoints for status, needs no count, stays in clip, toggles off and resets with label')
+
+
+async def test_g_label_actions(browser):
+    for label in ('nose', 'eye_lmk', 'seatbelt'):
+        page, server, errors = await setup(browser)
+        label_posts = []
+
+        async def save_label(route):
+            label_posts.append(route.request.post_data_json)
+            await route.fulfill(body='{}', content_type='application/json')
+
+        await page.route('**/api/label_edit', save_label)
+        await page.evaluate("""label=>{
+          S.labelSel=label;S.sess.src_w=2;S.sess.src_h=2;S.ts=Array(600).fill(0);
+          for(const item of Object.values(S.review))item.labels=[label];
+          for(let g=0;g<600;g++){
+            S.ledits[rvKey(g)]={[label]:[]};S.fstat[rvKey(g)]={[label]:{s:'wip'}};
+          }
+          S.ledits[rvKey(228)][label]=label==='eye_lmk'
+            ? [{pts:Array.from({length:15},(_,i)=>[i,i+1])}]
+            : label==='seatbelt' ? [{rle:{size:[2,2],counts:[1,2,1]}}]
+            : [{box:[0,0,1,1]}];
+          buildSeq();renderLabList();show(225);
+        }""", label)
+        await settle(page)
+        await set_g(page, 225)
+        await page.evaluate('show(228)')
+        await open_bulk(page, 'label')
+        await page.locator(DIALOG + (' [data-direction="range"]' if label == 'seatbelt' else ' [data-eye-direction="range"]')).click()
+        assert await page.locator(DIALOG + ' .nl-count').is_disabled()
+        assert '3 ' in await page.locator(DIALOG + ' .nl-label-panel .nl-preview').inner_text()
+        await page.locator(DIALOG + ' .nl-apply').click()
+        await page.wait_for_selector(DIALOG, state='hidden')
+        assert {p['i'] for p in label_posts} == {225, 226, 227}, (label, label_posts)
+        assert not server.posts
+        assert not errors, errors
+        await page.close()
+    print('PASS: G-to-current copies bbox, landmark and seatbelt labels to the intervening frames, excluding the source')
 
 
 async def test_tabs(browser):
@@ -256,6 +345,8 @@ async def main():
             await test_tabs(browser)
             await test_ranges(browser)
             await test_marks(browser)
+            await test_g_range(browser)
+            await test_g_label_actions(browser)
             await test_failure_and_scope(browser)
             await test_label_action_isolation(browser)
         finally:
