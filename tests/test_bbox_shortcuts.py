@@ -1,4 +1,4 @@
-"""Check the R/Delete alias in Chromium: python tests/test_bbox_shortcuts.py."""
+"""Check bbox keyboard shortcuts in Chromium: python tests/test_bbox_shortcuts.py."""
 from pathlib import Path
 
 from _ext import read_organizer_script
@@ -86,6 +86,30 @@ def main():
                 assert snapshot() == expected, (label, selection, snapshot(), expected)
                 assert len(expected["saves"]) == 1
         print("PASS: R matches native Delete for single/multiple selections across all 13 bbox labels")
+
+        for label in LABELS:
+            page.evaluate("reset", label)
+            original = snapshot()["items"]
+            page.keyboard.press("x")
+            assert snapshot()["items"] == [], label
+            page.keyboard.press("z")
+            assert snapshot()["items"] == original, (label, "undo X")
+
+            page.evaluate("reset", label)
+            page.keyboard.press("1")
+            assert snapshot()["items"] == original[1:], (label, "leftmost")
+
+            page.evaluate("reset", label)
+            page.keyboard.press("2")
+            assert snapshot()["items"] == original[:-1], (label, "rightmost")
+
+            page.evaluate("reset", label)
+            copied = original[1]
+            page.keyboard.press("Control+c")
+            page.evaluate("ED.items=[];edClearSel()")
+            page.keyboard.press("Control+v")
+            assert snapshot()["items"] == [copied], (label, "clipboard")
+        print("PASS: X/Z, 1/2 and Ctrl+C/Ctrl+V work across all 13 bbox labels")
 
         page.evaluate("reset()")
         page.keyboard.down("r")

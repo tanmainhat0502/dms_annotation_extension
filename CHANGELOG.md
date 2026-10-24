@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.39 - 2026-10-24
+
+- Enable the complete bbox shortcut workflow for all 13 bbox labels, including single-box labels such as head, mouth, nose, face, and face mask, plus object labels. `X` / `Shift+X`, `1` / `2`, `C` / `Shift+C`, `Ctrl+C` / `Ctrl+V`, `V`, `Ctrl+B`, and `Z` now use the same behavior previously limited to body, hand, and eye.
+- Add browser regression coverage for quick deletion, undo, clipboard copy/paste, and nearest-earlier-frame copying across every bbox label.
+
 ## 1.6.38 - 2026-10-23
 
 - Add **⚠ Warn** BBox error warning filter (`bbox-warn.js`): loads session auto-labels (`<= 2` concurrent segments), evaluates 4-layer session + clip anomaly rules (`dup`, `tiny`, `size`, `ratio`, `pos`, `jump`, `count`, `drift`) while respecting the multi-box `body` convention, and filters the sidebar to flagged frames with `.nl-warn-badge` reason badges. Navigation (`A` / `D`, `Space`), `C`, `Ctrl+B`, **Done all**, and **auto_load_img** operate strictly on the listed warning frames.

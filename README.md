@@ -2,7 +2,7 @@
 
 A Chrome extension for faster annotation in **DMS Labeling**. Group frames by clip, edit labels with keyboard shortcuts, and repeat changes across multiple frames.
 
-**Version 1.6.38 · English**
+**Version 1.6.39 · English**
 
 [Download the latest release](https://github.com/tanmainhat0502/dms_annotation_extension/releases/latest) · [Detailed usage guide](extension/README.md) · [Changelog](CHANGELOG.md)
 
@@ -69,7 +69,7 @@ Reload your DMS tab and open **Labeling**. Search for a part, expand a clip such
 | Transform eye 15pt | Drag inside the dashed box to move the eye, `Ctrl` + drag to rotate, or drag its handles to resize all 15 points. |
 | Review and undo | Mark frames with `V`, repeat bbox operations on marked frames, or reopen selected Done frames. `Z` undoes edits; one bbox undo can restore an entire batch. |
 
-**Label actions:** the frame count excludes the current frame. Previous/next operations stay inside the current clip and skip **Done** frames. Saved **Not checked** frames become **In progress**. For body/hand/eye boxes, marked targets may span clips within the same session and label.
+**Label actions:** the frame count excludes the current frame. Previous/next operations stay inside the current clip and skip **Done** frames. Saved **Not checked** frames become **In progress**. For every bbox label, marked targets may span clips within the same session and label.
 
 **Change status:** affects the active label only. Previous/next counts include the current frame, then continue in the selected direction through the complete current-label clip, including frames hidden by filters. **Marked frames** can span clips and include the current frame if marked. `V` marks/unmarks any status for every label. Marks remain available after saving; use `V` or **Clear selection** to remove them. Changing session or label clears that selection.
 
@@ -115,7 +115,7 @@ Use these on the labeling canvas, outside text fields. On macOS, `Cmd+B`, `Cmd+C
 | `F` | Toggle the current frame between Done and In progress. |
 | `K` | Show / hide seatbelt masks or eye 15pt without changing data. |
 | `Ctrl+B` | Open **Label actions** or **Change status**, remembering the last selected tab. |
-| `V` | Mark/unmark a frame in any status for bulk status changes. Body/hand/eye boxes also use these marks for label actions. |
+| `V` | Mark/unmark a frame in any status for bulk status changes. Every bbox label also uses these marks for label actions. |
 | `Enter` | Apply the action in an open bulk dialog. |
 | `Esc` | Cancel drawing or a pending bulk edit; in the part search field, clear the filter. Already saved edits require Undo. |
 
@@ -126,11 +126,11 @@ Use these on the labeling canvas, outside text fields. On macOS, `Cmd+B`, `Cmd+C
 | `N` | Click one corner, then the opposite corner to create a box. Clicks in the black margin snap to the image edge. No mouse hold needed. |
 | `M` | Draw a red delete region; right-click or click its first point to close it. `Esc` exits. |
 | `R` / `Delete` / `Backspace` | Delete the selected bounding box(es). `R` does nothing without a selection; hold-to-repeat is disabled for `R`. |
-| `X` / `Shift+X` | Body/hand/eye: delete all boxes / delete all and move to the next frame. |
-| `1` / `2` | Body/hand/eye: delete the leftmost / rightmost box. |
-| `C` / `Shift+C` | Body/hand/eye: replace current boxes with all boxes from the nearest earlier frame of the same label that has boxes, skipping empty frames / copy and move to the next frame. |
-| `Ctrl+C` / `Ctrl+V` | Body/hand/eye: copy / paste the selected box, or all boxes when none is selected. |
-| `Z` | Undo the latest edge adjustment or its whole bulk batch for any bbox label. Body/hand/eye also support undo for the other bbox operations. |
+| `X` / `Shift+X` | Every bbox label: delete all boxes / delete all and move to the next frame. |
+| `1` / `2` | Every bbox label: delete the leftmost / rightmost box. For a single-box label, either key deletes that box. |
+| `C` / `Shift+C` | Every bbox label: replace current boxes with all boxes from the nearest earlier frame of the same label that has boxes, skipping empty frames / copy and move to the next frame. |
+| `Ctrl+C` / `Ctrl+V` | Every bbox label: copy / paste the selected box, or all boxes when none is selected. |
+| `Z` | Undo the latest bbox edit or its whole bulk batch for every bbox label. |
 | Double-click an edge handle, then drag | All bbox labels: adjust the top, bottom, left, or right edge; use `Ctrl+B` to repeat its position across frames. |
 
 ### Seatbelt and eye 15pt

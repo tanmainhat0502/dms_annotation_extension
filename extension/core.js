@@ -6,7 +6,7 @@
   const bboxCountForFrame = (...args) => NL.bboxCountForFrame(...args);
   const scheduleBboxFilterRefresh = (...args) => NL.scheduleBboxFilterRefresh(...args);
 
-  const VERSION = "1.6.38";
+  const VERSION = "1.6.39";
 
   const ROOT_ID = "nota-labeling-organizer-v1";
 
@@ -47,7 +47,8 @@
 
   const OBJECT_BBOX_LABELS = new Set(["cigarette", "e_cigarette", "phone", "can", "bottle"]);
 
-  const QUICK_BBOX_LABELS = new Set(["body", "hand", "eye"]);
+  // Every bbox label uses the same quick-edit, clipboard, marking, and undo flow.
+  const QUICK_BBOX_LABELS = new Set(BBOX_LABELS);
 
   const BBOX_OVERLAP_IOU_THRESHOLD = 0.9;
 

@@ -4,7 +4,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 from _ext import read_organizer_script
-from test_bbox_shortcuts import HTML as BASE_HTML
+from test_bbox_shortcuts import HTML as BASE_HTML, LABELS
 
 ROOT=Path(__file__).resolve().parents[1]
 SETUP="""
@@ -50,9 +50,9 @@ function setupCopy(label='body'){
   window.autoData={frames:{}};window.autoLoads=0;window.loadGate=null;window.failLoad=false;
   window.lastMessage='';window.visitLog=[];
   for(let g=0;g<9;g++){
-    S.review[rvKey(g)]={i:g,labels:['body','hand','eye']};
+    S.review[rvKey(g)]={i:g,labels:[...labels]};
     autoData.frames[g]={};
-    for(const lab of ['body','hand','eye'])autoData.frames[g][lab]=[
+    for(const lab of labels)autoData.frames[g][lab]=[
       {box:[10+g,20+g,60+g,80+g]},{box:[200+g,50+g,260+g,110+g]}];
   }
   show(0);renderLabList();
@@ -86,7 +86,7 @@ def main():
             page.keyboard.press('Shift+c' if shift else 'c')
             page.wait_for_function('!previousCopyTest.state.bboxCopyRequest')
 
-        for label in ('body','hand','eye'):
+        for label in LABELS:
             setup(label)
             expected=items()
             page.evaluate('show(1);ED.sel=0');copy()
@@ -111,7 +111,7 @@ def main():
             # Copying must not alias the source array or its coordinates.
             page.evaluate('ED.items[0].box[0]+=100')
             assert page.evaluate('autoData.frames[0][S.labelSel][0].box[0]')==10
-        print('PASS: requested 1->2, edited 3->4, unedited 5->6, empty 7 skipped to 6->8; body/hand/eye, all boxes, undo and source isolation')
+        print('PASS: requested 1->2, edited 3->4, unedited 5->6, empty 7 skipped to 6->8; all 13 bbox labels, all boxes, undo and source isolation')
 
         setup();page.evaluate('show(7);S.ledits[rvKey(6)]={body:[]};S.ledits[rvKey(5)]={body:[]}')
         copy();assert items()==page.evaluate('autoData.frames[4].body')

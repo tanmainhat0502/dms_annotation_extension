@@ -108,9 +108,8 @@ def main():
                     assert page.evaluate('ED.drag') is None
                     page.mouse.move(*point([400,300]))
                     assert page.evaluate('ED.items') == expected, 'Release must end the drag'
-                    if label in ('body','hand','eye'):
-                        page.keyboard.press('z')
-                        page.wait_for_function('expected=>JSON.stringify(ED.items)===JSON.stringify(expected)', arg=before)
+                    page.keyboard.press('z')
+                    page.wait_for_function('expected=>JSON.stringify(ED.items)===JSON.stringify(expected)', arg=before)
         print('PASS: 13 labels, outside handle starts, all image edges, box movement, zoom/pan, one save and undo')
 
         page.locator('#view').evaluate("el=>el.style.transform='none'")

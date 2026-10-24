@@ -1,6 +1,6 @@
 # NOTA Labeling Organizer — usage guide
 
-**Version 1.6.38 · English**
+**Version 1.6.39 · English**
 
 For installation screenshots and the complete shortcut tables, see the [GitHub README](https://github.com/tanmainhat0502/dms_annotation_extension#readme).
 
@@ -65,7 +65,7 @@ The dialog has two tabs: **Label actions** and **Change status**. It remembers y
 
 The source frame is excluded from the count. Done targets are skipped; saved Not checked targets become In progress. Up to four saves run at a time. On an error, no new saves are started; earlier successful saves remain applied.
 
-For body/hand/eye boxes, `V` marks targets and this tab offers **Marked frames**. These targets can span clips in the same session and label.
+For every bbox label, `V` marks targets and this tab offers **Marked frames**. These targets can span clips in the same session and label.
 
 `Esc` / **Cancel** discards the pending region; it does not undo edits already saved. A running bulk save cannot be canceled through this dialog.
 
@@ -94,9 +94,9 @@ Matching compares box geometry with the source layout; it does not recognize peo
 
 Dragging or resizing continues when the pointer crosses into the black margin, including horizontal drags along the bottom image edge. You can grab the part of a boundary handle that lies just outside the image. On release, the outside portion is clipped to the image boundary and the box is saved once. Losing window focus or canceling the pointer restores the unsaved drag.
 
-### Body, hand, and eye box shortcuts
+### Shortcuts for every bbox label
 
-`X` deletes all boxes; `1` / `2` delete the leftmost / rightmost box. `Shift+X` deletes all and advances one frame.
+`X` deletes all boxes; `1` / `2` delete the leftmost / rightmost box. For a single-box label such as head, mouth, or nose, either number deletes that box. `Shift+X` deletes all and advances one frame.
 
 `C` replaces all boxes in the current frame with those from the **nearest earlier frame of the same label that has boxes**. It searches backward by frame number in the current session, skipping empty frames, including frames you have not opened and Done frames hidden by only-todo. Saved edits take precedence over auto-labels; a saved empty list remains empty. If no earlier frame has boxes, the current frame stays unchanged.
 
@@ -142,7 +142,7 @@ Drag an empty area inside the dashed eye box to move all 15 points. Hold `Ctrl` 
 
 For every label, `V` marks or unmarks the current frame, whether it is Done, In progress, or Not checked. Mark any frames in the same session and label, then use **Ctrl+B → Change status → Marked frames** and select a destination. To reopen Done frames, choose **In progress**.
 
-Marks remain after saving and when status filters hide the rows, so you can reuse the selection. Press `V` again or **Clear selection** to remove marks. Changing the session or label clears them. Body/hand/eye boxes also use the same marks in **Label actions**. `F` still toggles the current frame's Done / In progress status.
+Marks remain after saving and when status filters hide the rows, so you can reuse the selection. Press `V` again or **Clear selection** to remove marks. Changing the session or label clears them. Every bbox label also uses the same marks in **Label actions**. `F` still toggles the current frame's Done / In progress status.
 
 ## Updates
 
