@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NOTA Labeling Organizer",
-  "version": "1.6.45",
+  "version": "1.6.46",
   "description": "Group frames by clip; use shortcuts for every bbox label, adjust any bbox edge, and apply annotations in bulk with Ctrl+B.",
   "icons": {
     "16": "icons/icon16.png",
@@ -33,6 +33,7 @@
         "bbox-filter.js",
         "bbox-tools.js",
         "seatbelt-eye.js",
+        "eye-shortcuts.js",
         "bulk-dialogs.js",
         "content.js",
         "preload.js"

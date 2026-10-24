@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.46 - 2026-10-24
+
+- Add eye 15pt shortcuts: `N` creates a group on the next image click, `R` deletes the selected eye, `X` deletes all, `1` / `2` delete left/right, `C` copies the nearest earlier nonempty frame, `Ctrl+C` / `Ctrl+V` copy between frames, and `Z` undoes group and point edits. `Shift+X` and `Shift+C` advance afterward. Move the native closed-eye shortcut to `Alt+C`; its checkbox remains available.
+- Add a **Done all ▾** menu to each sticky part control with direct **Done all** and **In progress all** actions. Keep the existing checkbox toggle and part-wide progress behavior.
+- Add browser regressions for eye creation, deletion, copy, undo and guards, plus the part menu at a scrolled position.
+
 ## 1.6.45 - 2026-10-24
 
 - Add `G` to mark a range start. `Ctrl+B` now offers **From G to current frame** in both **Change status** and **Label actions**, avoiding manual frame counts. Status includes both endpoints; label actions exclude the current source frame. The range stays within one clip and works in either direction.

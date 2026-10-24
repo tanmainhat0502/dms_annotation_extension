@@ -296,6 +296,65 @@
     if (restoreFocus && menu.button.isConnected) menu.button.focus({ preventScroll: true });
   }
 
+  function closePartStatusMenu(restoreFocus = false) {
+    const menu = state.partStatusMenu;
+    if (!menu) return;
+    state.partStatusMenu = null;
+    menu.element.remove();
+    menu.button.setAttribute("aria-expanded", "false");
+    if (restoreFocus && menu.button.isConnected) menu.button.focus({ preventScroll: true });
+  }
+
+  function openPartStatusMenu(row, button) {
+    if (button.disabled || !row.isConnected || !partStatusMatches(state.partScopes.get(row))) return;
+    if (state.partStatusMenu?.button === button) {
+      closePartStatusMenu(true);
+      return;
+    }
+    closePartStatusMenu();
+    closeClipStatusMenu();
+    const menu = document.createElement("div");
+    menu.id = "nl-part-status-menu";
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("aria-label", `Set all frames in part ${row.dataset.partName}`);
+    for (const [value, caption] of [["done", "Done all"], ["wip", "In progress all"]]) {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.setAttribute("role", "menuitem");
+      option.dataset.state = value;
+      option.textContent = caption;
+      option.addEventListener("click", (event) => {
+        event.stopPropagation();
+        closePartStatusMenu();
+        setWholePartState(row, value);
+      });
+      menu.append(option);
+    }
+    menu.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+      const options = Array.from(menu.querySelectorAll("button"));
+      const index = options.indexOf(document.activeElement);
+      if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+        event.preventDefault();
+        const next = event.key === "Home" ? 0 : event.key === "End" ? options.length - 1 :
+          (index + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length;
+        options[next].focus({ preventScroll: true });
+      }
+    });
+    menu.addEventListener("focusout", () => setTimeout(() => {
+      if (state.partStatusMenu?.element === menu && !menu.contains(document.activeElement) &&
+          document.activeElement !== button) closePartStatusMenu();
+    }, 0));
+    document.body.append(menu);
+    const rect = button.getBoundingClientRect();
+    menu.style.left = `${Math.max(8, Math.min(rect.right + 4, innerWidth - menu.offsetWidth - 8))}px`;
+    menu.style.top = `${Math.max(8, rect.bottom + menu.offsetHeight <= innerHeight - 8
+      ? rect.bottom : rect.top - menu.offsetHeight)}px`;
+    state.partStatusMenu = { element: menu, button, row };
+    button.setAttribute("aria-expanded", "true");
+    menu.querySelector("button")?.focus({ preventScroll: true });
+  }
+
   function scheduleCloseClipStatusMenu() {
     clearTimeout(state.clipMenuTimer);
     state.clipMenuTimer = setTimeout(() => {
@@ -913,6 +972,7 @@
     buildToolbar, markedScopeMatches, bboxMarkedScopeMatches, syncMarkedScope,
     syncBboxMarkedScope, positionMarkedBadge, setFrameMarker, syncFrameMarkers, updateMarkedUI,
     clearMarkedFrames, toggleMarkedFrame, toggleRangeStart, buildMarkedBadge, closeClipStatusMenu,
+    closePartStatusMenu, openPartStatusMenu,
     scheduleCloseClipStatusMenu, openClipStatusMenu, setClipSourceState, setWholePartState,
     sidebarUnfinishedFrames, doneAllSidebarFrames, bboxFilterSupported, bboxCountCache,
     countValidBoxes, bboxCountForFrame, bboxFilterWants, bboxLoadFor,

@@ -2,7 +2,7 @@
 
 A Chrome extension for faster annotation in **DMS Labeling**. Group frames by clip, edit labels with keyboard shortcuts, and repeat changes across multiple frames.
 
-**Version 1.6.45 · English**
+**Version 1.6.46 · English**
 
 [Download the latest release](https://github.com/tanmainhat0502/dms_annotation_extension/releases/latest) · [Detailed usage guide](extension/README.md) · [Changelog](CHANGELOG.md)
 
@@ -58,7 +58,7 @@ Reload your DMS tab and open **Labeling**. Search for a part, expand a clip such
 | Load images and boxes ahead | Click **auto_load_img** to download the images and raw bbox data for the current part and the next part that has frames in the sidebar (matching active status and BBox filters, including Done frames when **Show done** is enabled). Separate counters show loaded images and bbox segments; **Stop** pauses and keeps completed downloads. |
 | Filter frame status | Tick **Show done**, **Show in progress**, and **Show not checked** below the progress bar. Combine any choices with the part search; navigation follows the filtered frames. Choices are remembered after reload. The checkboxes stay in view while you use them; farther down the list, the visible frame/clip/part stays in place. |
 | Change clip status | Hover over or click **Done**, **Not checked**, or **In progress** on a clip, then choose one of the other two statuses. Only frames currently in the chosen source status change, including hidden frames in that clip. |
-| Set the whole part Done | Tick **Done all** below the part's frame count in the left column. Untick to set all its frames to **In progress**. The control follows scrolling within the part; a dash means only some frames are Done. |
+| Set the whole part's status | Tick **Done all** below the part's frame count, or click **Done all ▾** to choose **Done all** or **In progress all** directly. Unticking also sets all frames to In progress. The control follows scrolling within the part; a dash means only some frames are Done. |
 | Edit bounding boxes | Press `N` and click two opposite corners to create a box. Use `M` to draw a region that deletes boxes inside it. Handles keep tracking the pointer across image edges; boxes dragged outside are clipped on release. |
 | Bulk action tabs | `Ctrl+B` has **Label actions** for copy/delete/adjust and **Change status** for Not checked, In progress, or Done. It remembers the last selected tab, including after reload. |
 | Change frame status in bulk | In **Change status**, select previous/next frames with a count or `end`, choose **Marked frames** from your `V` selection, or press `G` on the first frame and choose **From G to current frame**. The G range includes both endpoints. Includes Done and hidden frames, skips frames already at the destination status, and preserves annotations. |
@@ -77,7 +77,7 @@ Reload your DMS tab and open **Labeling**. Search for a part, expand a clip such
 
 **Box matching uses geometry**, not visual object recognition. Boxes that overlap by at least 90% IoU are highlighted red. The image also shows a bbox count.
 
-**Done all** affects the current label across the entire part, including collapsed clips and frames hidden by status filters. It shows save progress and sends at most four status requests at once. While those statuses save, bbox editing such as `R`, `C`, and `Z` stays available immediately after clicking the checkbox, and **auto_load_img** continues with one background request. The currently open frame is saved last. If a save fails, completed saves remain and the checkbox reflects the actual result. Enable **Show done** to see completed parts and untick one to reopen it.
+**Done all ▾** offers **Done all** and **In progress all** for the current label across the entire part, including collapsed clips and frames hidden by status filters. The checkbox remains a quick toggle. Status saves show progress and send at most four requests at once. While those statuses save, annotation editing such as `R`, `C`, and `Z` stays available and **auto_load_img** continues with one background request. The currently open frame is saved last. If a save fails, completed saves remain and the checkbox reflects the actual result.
 
 **Clip status example:** **Done → In progress** reopens only Done frames in that clip; existing Not checked and In progress frames stay as they are. The menu shows the source-frame count. No frames change until you choose a destination. **In progress** and **Not checked** work the same way. A source button is disabled when the clip has no frames in that status. Changes affect only the active label and preserve annotations.
 
@@ -148,6 +148,13 @@ Use these on the labeling canvas, outside text fields. On macOS, `Cmd+B`, `Cmd+C
 | Drag inside the dashed eye box | Move all 15 eye points. |
 | `Ctrl` + drag inside the eye box | Rotate all 15 eye points. |
 | Drag an eye edge / corner handle | Resize the eye group; dragging an individual point edits only that point. |
+| `N` | Eye 15pt: click the center of an eye to add a default 15-point group; `Esc` cancels. |
+| `R` / `X` / `Shift+X` | Eye 15pt: delete the selected eye / all eyes / all eyes and advance. |
+| `1` / `2` | Eye 15pt: delete the leftmost / rightmost eye. |
+| `C` / `Shift+C` | Eye 15pt: copy all eye groups from the nearest earlier nonempty frame / copy and advance. |
+| `Ctrl+C` / `Ctrl+V` | Eye 15pt: copy all current eye groups to the clipboard / replace the destination frame's groups. |
+| `Z` | Eye 15pt: undo the latest group or point edit, including create, delete, copy and drag. |
+| `Alt+C` | Eye 15pt: toggle the selected group's closed-eye state; the **Closed eye** checkbox also works. |
 
 ## Updates
 

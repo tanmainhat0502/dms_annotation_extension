@@ -27,7 +27,7 @@ Each clip has **Done**, **Not checked**, and **In progress** source buttons. Hov
 
 Status changes affect only the active label, preserve annotations, and send up to four requests at once. Errors stop new requests; retrying the same transition picks up frames still in the source status. Changing session, label, or mode stops queued requests. A checkpoint marks the last edited frame. The list preserves its scroll position during edits and brings newly opened frames into view.
 
-To set an entire part's status, use **Done all** below its frame count in the left column. Tick it to mark all frames **Done**; untick it to make all frames **In progress**. A dash means only some frames are Done. The count and checkbox stay visible while scrolling within that part.
+To set an entire part's status, use **Done all ▾** below its frame count in the left column and choose **Done all** or **In progress all**. The checkbox remains a quick toggle: tick it for Done, untick it for In progress. A dash means only some frames are Done. The control stays visible while scrolling within that part.
 
 This action covers the current label's whole part, including closed clips and frames hidden by status filters. It pauses playback, shows saved/total progress, and saves up to four frames at a time. BBox editing remains available, so `R`, `C`, and `Z` work immediately after clicking the checkbox, and **auto_load_img** continues with one background request; the open frame's status is saved last. Other parts, labels, and annotations stay unchanged. A failed request stops further saves; successful saves remain. Switching session, label, or mode stops queued requests. Enable **Show done** to see completed parts and reopen them with the checkbox.
 
@@ -136,6 +136,8 @@ The dashed SAM3 box is a processing region, separate from the mask. It is rememb
 `F` toggles Done / In progress, `Space` plays / pauses, and `K` toggles mask visibility without changing data.
 
 ## Eye 15pt
+
+Press `N`, then click the center of an eye in the image to create a default 15-point group. Press `Esc` to cancel add mode. `R` deletes the selected eye, `X` deletes all eyes, and `1` / `2` delete the leftmost / rightmost eye. `Shift+X` deletes all and advances to the next frame. `C` copies all eye groups from the nearest earlier frame with eye points (skipping empty frames); `Shift+C` also advances. `Ctrl+C` / `Ctrl+V` copy and paste all eye groups between frames. `Z` undoes the latest eye edit, including point moves and group transforms. `Alt+C` toggles the selected eye's closed state; the **Closed eye** checkbox remains available.
 
 Select an eye and press `Ctrl+B`. Choose **Selected eye only** or **All eyes in the current frame**, then choose whether to replace matching eyes and keep the others, or replace all target eyes.
 

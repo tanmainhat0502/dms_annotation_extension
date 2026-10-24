@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = read_organizer_script()
 PART = '.grp[data-part-name="Phone call"]'
 CHECK = PART + ' .nl-part-done'
+CHOICE = PART + ' .nl-part-status-choice'
 
 
 class Server:
@@ -89,6 +90,38 @@ async def assert_visible(page):
       return r.top>=t.bottom && r.bottom<=p.bottom &&
         document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)===el;
     }"""), 'Part checkbox must remain visible and clickable'
+
+
+async def test_part_status_menu(browser):
+    page, server, errors = await setup(browser)
+    await page.locator(PART).evaluate("""row=>{
+      const pane=document.querySelector('#labPane'),toolbar=document.querySelector('#nota-labeling-organizer-v1');
+      pane.scrollTop+=row.getBoundingClientRect().top-toolbar.getBoundingClientRect().bottom+row.offsetHeight*.7;
+    }""")
+    await settle(page)
+    await click_without_scrolling(page, CHOICE)
+    menu = page.locator('#nl-part-status-menu')
+    await menu.wait_for(state='visible')
+    assert not await page.locator(CHECK).is_checked(), 'Opening the menu must not tick Done all'
+    assert not server.posts
+    assert await menu.evaluate('el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight}')
+    await page.keyboard.press('Escape')
+    assert await menu.count() == 0
+    await click_without_scrolling(page, CHOICE)
+    await menu.locator('button[data-state="wip"]').click()
+    await finished(page)
+    assert len(server.posts) == 150 and all(p['state'] == 'wip' for p in server.posts)
+    assert await page.evaluate('Array.from({length:150},(_,i)=>fsGet(i+150)).every(s=>s==="wip")')
+    assert not await page.locator(CHECK).is_checked()
+    server.posts.clear()
+    await click_without_scrolling(page, CHOICE)
+    await menu.locator('button[data-state="done"]').click()
+    await finished(page)
+    assert len(server.posts) == 150 and all(p['state'] == 'done' for p in server.posts)
+    assert await page.locator(CHECK).is_checked()
+    assert not errors, errors
+    await page.close()
+    print('PASS: sticky part control offers direct In progress all and Done all without toggling the checkbox')
 
 
 async def test_done_reopen_and_sticky(browser):
@@ -315,6 +348,7 @@ async def test_editing_and_preload_continue_during_done_all(browser):
 async def main():
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=True)
+        await test_part_status_menu(browser)
         await test_done_reopen_and_sticky(browser)
         await test_hidden_and_failed(browser)
         await test_scope_changes(browser)

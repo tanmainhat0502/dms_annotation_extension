@@ -13,6 +13,8 @@
   const openClipStatusMenu = (...args) => NL.openClipStatusMenu(...args);
   const scheduleCloseClipStatusMenu = (...args) => NL.scheduleCloseClipStatusMenu(...args);
   const setWholePartState = (...args) => NL.setWholePartState(...args);
+  const openPartStatusMenu = (...args) => NL.openPartStatusMenu(...args);
+  const closePartStatusMenu = (...args) => NL.closePartStatusMenu(...args);
   const updateMarkedUI = (...args) => NL.updateMarkedUI(...args);
 
   function clipKey(partName, clipNo) {
@@ -819,6 +821,7 @@
     fsRender = function (...args) {
       state.bboxRevision += 1;
       closeClipStatusMenu();
+      closePartStatusMenu();
       if (pageLabelingReady() && statusFilterRestricted()) {
         const previous = Array.from(S.lseq || []);
         buildSeq();
@@ -868,14 +871,24 @@
     partTools.className = "nl-part-tools";
     const partTotal = document.createElement("span");
     partTotal.className = "nl-part-total";
-    const doneLabel = document.createElement("label");
+    const doneLabel = document.createElement("div");
     doneLabel.className = "nl-part-done-label";
     const done = document.createElement("input");
     done.type = "checkbox";
     done.className = "nl-part-done";
     done.setAttribute("aria-label", `Done all frames in part ${partName}`);
-    const caption = document.createElement("span");
-    caption.textContent = "Done all";
+    const caption = document.createElement("button");
+    caption.type = "button";
+    caption.className = "nl-part-status-choice";
+    caption.textContent = "Done all ▾";
+    caption.setAttribute("aria-label", `Choose Done all or In progress all for part ${partName}`);
+    caption.setAttribute("aria-haspopup", "menu");
+    caption.setAttribute("aria-expanded", "false");
+    caption.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openPartStatusMenu(row, caption);
+    });
     doneLabel.append(done, caption);
     done.addEventListener("change", () => {
       done.blur();
@@ -1047,6 +1060,8 @@
       input.checked = frames.length > 0 && count === frames.length;
       input.indeterminate = count > 0 && count < frames.length;
       input.disabled = !frames.length || state.operationBusy || state.statusOperationBusy;
+      const choice = row.querySelector(".nl-part-status-choice");
+      if (choice) choice.disabled = input.disabled;
       input.title = `${count}/${frames.length} Done · Check: all Done · Uncheck: all In progress`;
       const operation = state.partStatusOperation;
       const busy = partStatusMatches(operation) && operation.name === row.dataset.partName;

@@ -8,9 +8,10 @@
     bboxEditingAvailable, bboxFilterWants, bboxLabelingReady, buildMarkedBadge, buildToolbar,
     cancelBboxMode, cancelBulkDialog, cancelEyeBulkDialog, cancelManualMode,
     capturePlaybackSidebarPosition,
-    closeClipStatusMenu, commitBboxDeletePolygon, copyPreviousQuickBbox,
+    closeClipStatusMenu, closePartStatusMenu, commitBboxDeletePolygon, copyPreviousQuickBbox,
     copyQuickBboxToClipboard, deleteQuickBbox, ensureBboxEditing, ensureBulkDialog,
     ensureCurrentClipOpen, ensureEyeBulkDialog, ensureEyeGroupDragging, ensureEyePanelHint,
+    ensureEyeShortcutTracking, eyeLandmarkActive, handleEyeShortcut, deleteEye, undoEye,
     ensureEyeTransformDrawing, ensureLabelVisibility, ensureNativeEditing,
     ensureOrganizedPlayback, ensurePointerPerformance, ensurePolygonDrawing,
     ensurePolygonTools, ensureSidebarRendering, ensureStatusFilters, ensureStatusRendering,
@@ -70,6 +71,11 @@
       }
       return true;
     }
+    if (!event.shiftKey && eyeLandmarkActive()) {
+      consumeKeyEvent(event);
+      if (!event.repeat && !event.isComposing) deleteEye("selected");
+      return true;
+    }
     return false;
   }
 
@@ -108,7 +114,12 @@
       closeClipStatusMenu(true);
       return;
     }
-    if (target?.closest?.("#nl-clip-status-menu, .nl-clip-status-actions, #nl-status-filters")) return;
+    if (event.code === "Escape" && state.partStatusMenu) {
+      consumeKeyEvent(event);
+      closePartStatusMenu(true);
+      return;
+    }
+    if (target?.closest?.("#nl-clip-status-menu, #nl-part-status-menu, .nl-part-status-choice, .nl-clip-status-actions, #nl-status-filters")) return;
     const typing = target?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target?.tagName || "");
     const hasCtrlOrMeta = event.ctrlKey || event.metaKey;
     const noModifiers = !hasCtrlOrMeta && !event.altKey;
@@ -130,14 +141,16 @@
       return;
     }
     if (event.code === "KeyZ" && !event.altKey && !event.shiftKey && !anyBulkDialogOpen() &&
-        (bboxLabelingReady() || pageLabelingReady("seatbelt"))) {
+        (bboxLabelingReady() || eyeLandmarkActive() || pageLabelingReady("seatbelt"))) {
       consumeKeyEvent(event);
       if (!event.repeat) {
         if (bboxLabelingReady()) undoQuickBbox();
+        else if (eyeLandmarkActive()) undoEye();
         else undoSeatbelt();
       }
       return;
     }
+    if (!anyBulkDialogOpen() && handleEyeShortcut(event, hasCtrlOrMeta, noModifiers, consumeKeyEvent)) return;
     if (!anyBulkDialogOpen() && quickBboxReady() && handleQuickBboxShortcut(event, hasCtrlOrMeta, noModifiers)) return;
     if (event.code === "Escape" && (state.manualMode || state.lastPatch)) {
       consumeKeyEvent(event);
@@ -189,6 +202,7 @@
     ensureNativeEditing();
     ensureBboxEditing();
     ensureLabelVisibility();
+    ensureEyeShortcutTracking();
     ensureEyeGroupDragging();
     ensureEyeTransformDrawing();
     ensureEyePanelHint();
@@ -207,6 +221,7 @@
 
     if (!isLabelingMode()) {
       closeClipStatusMenu();
+      closePartStatusMenu();
       state.sidebarScope = null;
       if (state.toolbar) state.toolbar.hidden = true;
       if (state.markedBadge) state.markedBadge.hidden = true;
@@ -226,6 +241,8 @@
     }
     if (state.clipStatusMenu && (!state.clipStatusMenu.details.isConnected ||
         !partStatusMatches(state.clipScopes.get(state.clipStatusMenu.details)))) closeClipStatusMenu();
+    if (state.partStatusMenu && (!state.partStatusMenu.row.isConnected ||
+        !partStatusMatches(state.partScopes.get(state.partStatusMenu.row)))) closePartStatusMenu();
     ensureEditorAndCanvasHooks();
     if (!pageLabelingReady("seatbelt") && (state.manualMode || state.lastPatch)) cancelManualMode();
     if (state.bboxMode && !bboxLabelingReady()) cancelBboxMode();
@@ -285,11 +302,15 @@
     window.addEventListener("pointerdown", (event) => {
       const menu = state.clipStatusMenu;
       if (menu && !menu.element.contains(event.target) && !menu.button.contains(event.target)) closeClipStatusMenu();
+      const partMenu = state.partStatusMenu;
+      if (partMenu && !partMenu.element.contains(event.target) && !partMenu.button.contains(event.target)) closePartStatusMenu();
     }, true);
     window.addEventListener("scroll", (event) => {
       if (!state.clipStatusMenu?.element.contains(event.target)) closeClipStatusMenu();
+      if (!state.partStatusMenu?.element.contains(event.target)) closePartStatusMenu();
     }, true);
     window.addEventListener("resize", () => closeClipStatusMenu());
+    window.addEventListener("resize", () => closePartStatusMenu());
     window.addEventListener("keyup", onGlobalKeyUp, true);
     window.addEventListener("mouseup", onBboxMouseUp, true);
     window.addEventListener("blur", () => { state.samAcceptHeld = false; });

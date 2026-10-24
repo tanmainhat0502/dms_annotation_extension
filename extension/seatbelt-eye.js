@@ -95,6 +95,7 @@
 
   function onEyeGroupMouseDown(event) {
     if (event.button !== 0 || event.metaKey || event.altKey || event.shiftKey || state.eyeGroupDrag) return;
+    if (typeof LM !== "undefined" && LM.addEye) return;
     const resize = event.ctrlKey ? null : eyeResizeAtEvent(event);
     const drag = resize || eyeGroupAtEvent(event, event.ctrlKey);
     if (!drag) return;
@@ -236,7 +237,7 @@
         if (panel && !panel.querySelector(".nl-eye-group-hint")) {
           const hint = document.createElement("div");
           hint.className = "nl-eye-group-hint";
-          hint.innerHTML = "Drag inside the box to move the eye · <b>Ctrl + drag</b> to rotate<br>Drag an edge or corner handle to resize the eye";
+          hint.innerHTML = "N: add eye · C: copy previous · R: delete selected · X: delete all · Z: undo<br>Alt+C: closed eye · Drag inside the box to move · Ctrl + drag to rotate<br>Drag an edge or corner handle to resize";
           panel.appendChild(hint);
         }
       }

@@ -14,18 +14,19 @@
       #nl-status-filters { display: flex; flex-wrap: wrap; gap: 5px 10px; margin-top: 6px; }
       #nl-status-filters label { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; cursor: pointer; }
       #nl-status-filters input { margin: 0; accent-color: #55aaff; }
-      #nl-clip-status-menu {
+      #nl-clip-status-menu, #nl-part-status-menu {
         position: fixed; z-index: 10000; width: 205px; max-width: calc(100vw - 16px);
         box-sizing: border-box; padding: 6px; border: 1px solid #596273; border-radius: 5px;
         background: #202630; color: #dce4ee; font: 12px/1.4 "Segoe UI", sans-serif;
         box-shadow: 0 4px 16px #0008;
       }
       #nl-clip-status-menu .nl-menu-title { padding: 3px 5px 6px; color: #aeb9c8; }
-      #nl-clip-status-menu button {
+      #nl-clip-status-menu button, #nl-part-status-menu button {
         display: block; width: 100%; padding: 7px; text-align: left; font: inherit;
         color: inherit; background: transparent; border: 0; border-radius: 3px; cursor: pointer;
       }
-      #nl-clip-status-menu button:hover, #nl-clip-status-menu button:focus-visible { background: #354355; }
+      #nl-clip-status-menu button:hover, #nl-clip-status-menu button:focus-visible,
+      #nl-part-status-menu button:hover, #nl-part-status-menu button:focus-visible { background: #354355; }
       #nl-timeline-controls {
         display: flex; align-items: center; gap: 6px;
         flex: none; min-width: 0; height: 44px;
@@ -282,7 +283,13 @@
         line-height: 1.1;
         cursor: pointer;
       }
-      #labList .nl-part-done-label > span { writing-mode: vertical-rl; text-orientation: mixed; }
+      #labList .nl-part-status-choice {
+        padding: 0; border: 0; color: inherit; background: transparent; font: inherit;
+        writing-mode: vertical-rl; text-orientation: mixed; cursor: pointer;
+      }
+      #labList .nl-part-status-choice:hover:not(:disabled),
+      #labList .nl-part-status-choice:focus-visible { color: #fff; text-decoration: underline; }
+      #labList .nl-part-status-choice:disabled { opacity: .5; cursor: progress; }
       #labList .nl-part-done { width: 16px; height: 16px; margin: 0; accent-color: #39b767; cursor: pointer; }
       #labList .nl-part-done:disabled { cursor: progress; }
       #labList .nl-part-tools[aria-busy="true"] { opacity: .7; }
