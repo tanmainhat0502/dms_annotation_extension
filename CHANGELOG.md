@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.42 - 2026-10-24
+
+- Keep the previous display visible during fast `A` / `D`, sidebar, timeline, and `Space` navigation until both the target image and its bbox data are ready. Rapid navigation now discards stale loads and paints only the latest requested frame, preventing cached images from appearing temporarily without boxes.
+- Extend **auto_load_img** to preload raw auto-label/bbox responses for the current two-part window with at most two background requests. Responses stay in IndexedDB and are parsed only on use, rotate with the part window, and have a separate loaded/total segment counter.
+- Release keyboard focus from the part **Done all** checkbox after it changes so bbox shortcuts such as `R`, `C`, and `Z` remain available while status saves run.
+- Add browser regressions for rapid `D` navigation, bbox data stored on disk and released on part rotation, bounded bbox concurrency, and `R` / `C` / `Z` during pending **Done all** saves.
+
 ## 1.6.41 - 2026-10-24
 
 - Keep bbox editing available while **Done all** or another clip/part status batch is saving, so `R` and `C` act immediately instead of waiting for the complete status queue. Status controls remain locked against overlapping status batches, and the currently open frame is queued last.

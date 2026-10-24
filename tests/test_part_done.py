@@ -272,7 +272,6 @@ async def test_editing_and_preload_continue_during_done_all(browser):
 
     server.gate.clear()
     await click_without_scrolling(page, CHECK)
-    await page.locator(CHECK).evaluate('el=>el.blur()')
     for _ in range(100):
         if server.active == 4:
             break
@@ -297,6 +296,11 @@ async def test_editing_and_preload_continue_during_done_all(browser):
     assert await page.evaluate("""()=>JSON.stringify(ED.items.map(item=>item.box))===
       JSON.stringify([[10,10,20,20],[30,10,40,20]]) && window.editorSaves===2"""), \
       'C must copy the nearest previous bbox immediately during Done all'
+    await page.keyboard.press('z')
+    await page.wait_for_function('!window.__notaOrganizerV1.state.operationBusy')
+    assert await page.evaluate("""()=>JSON.stringify(ED.items.map(item=>item.box))===
+      JSON.stringify([[6,1,10,5]]) && window.editorSaves===3"""), \
+      'Z must undo immediately during Done all'
     assert 228 not in [post['i'] for post in server.posts], 'Save the actively edited frame last'
 
     server.gate.set()
@@ -305,7 +309,7 @@ async def test_editing_and_preload_continue_during_done_all(browser):
     assert await page.evaluate('!window.__notaOrganizerV1.state.statusOperationBusy')
     assert not errors, errors
     await page.close()
-    print('PASS: R/C editing and one bounded image preload continue while Done all saves statuses')
+    print('PASS: R/C/Z editing and one bounded image preload continue while Done all saves statuses')
 
 
 async def main():

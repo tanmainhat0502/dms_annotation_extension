@@ -1,6 +1,7 @@
 """Large-list playback and cached Space playback with local DMS responses."""
+import json
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from playwright.sync_api import sync_playwright
 
@@ -108,6 +109,10 @@ def open_page(browser,count):
         elif path=='/api/frame':
             requests.append(r.request.url)
             r.fulfill(body=PNG,content_type='image/png')
+        elif path=='/api/autolabel':
+            seg=parse_qs(urlparse(r.request.url).query)['seg'][0]
+            si=int(seg.rsplit('-',1)[1])
+            r.fulfill(body=json.dumps({'frames':{'0':{'body':[{'box':[si,si,si+10,si+10]}]}}}),content_type='application/json')
         else:raise AssertionError(f'Unexpected network request: {r.request.method} {path}')
 
     page.route('**/*',route);page.goto('https://ntt.dev.nota.ai/')
@@ -242,6 +247,98 @@ def test_cross_segment_annotations(browser):
     assert not errors,errors
     page.close()
     print('PASS: cached cross-segment Space playback waits for each bbox payload and uses at most two auto-label lookahead requests')
+
+
+def test_direct_navigation_waits_for_annotations(browser):
+    page,errors,requests=open_page(browser,16)
+    page.evaluate('''async()=>{
+      pause();
+      S.sess.segments=Array.from({length:S.G},(_,i)=>({name:`segment-${i}`,n:1,al:true}));
+      S.al=new Map();S.ledits={};
+      window.loc=g=>[g,0];window.segPfx=si=>`test/segment-${si}/`;
+      const annotation=si=>({frames:{'0':{body:[{box:[si,si,si+10,si+10]}]}}});
+      S.al.set(0,annotation(0));
+      window.ensureAL=function(si){
+        if(S.al.has(si))return S.al.get(si);
+        const pending=new Promise(resolve=>setTimeout(()=>{
+          const data=annotation(si);S.al.set(si,data);resolve(data);
+        },180));
+        S.al.set(si,pending);return pending;
+      };
+      await Promise.all(Array.from({length:S.G},(_,g)=>getFrame(g)));
+      await show(0);window.annotationPaints=[];
+      const nativePaint=paint;
+      paint=function(){
+        const [si,i]=loc(S.shownG),data=S.al.get(si),frame=data && typeof data.then!=='function'
+          ? data.frames[String(i)] : null;
+        annotationPaints.push({g:S.shownG,ready:!!frame,boxes:frame?.body?.length||0});
+        nativePaint();
+      };
+    }''')
+    page.evaluate('void show(1)')
+    page.wait_for_timeout(60)
+    assert page.evaluate('[S.g,S.shownG,annotationPaints.length]')==[1,0,0]
+    page.wait_for_function('S.shownG===1')
+    assert page.evaluate('annotationPaints')==[{'g':1,'ready':True,'boxes':1}]
+
+    page.evaluate('window.annotationPaints=[]')
+    page.keyboard.press('d');page.keyboard.press('d')
+    assert page.evaluate('S.g')==3
+    page.wait_for_function('S.shownG===3')
+    assert page.evaluate('annotationPaints')==[{'g':3,'ready':True,'boxes':1}]
+    assert not errors,errors
+    page.close()
+    print('PASS: D/click/show retain the previous image until the target bbox is ready; rapid navigation paints only the latest frame')
+
+
+def test_auto_load_preloads_bboxes(browser):
+    page,errors,requests=open_page(browser,16)
+    page.evaluate('''()=>{
+      S.sess.segments=Array.from({length:S.G},(_,i)=>({name:`segment-${i}`,n:1,al:true}));
+      S.al=new Map();S.ledits={};
+      window.loc=g=>[g,0];window.segPfx=si=>`test/segment-${si}/`;
+      const nativeFetch=window.fetch.bind(window);
+      window.autoLabelCalls=[];window.autoLabelActive=0;window.autoLabelPeak=0;
+      window.fetch=async function(input,init){
+        const url=new URL(typeof input==='string'?input:input.url,location.href);
+        if(url.pathname!=='/api/autolabel')return nativeFetch(input,init);
+        autoLabelCalls.push(url.searchParams.get('seg'));autoLabelActive++;
+        autoLabelPeak=Math.max(autoLabelPeak,autoLabelActive);
+        await new Promise(resolve=>setTimeout(resolve,60));
+        try{return await nativeFetch(input,init)}finally{autoLabelActive--}
+      };
+      window.ensureAL=function(si){
+        if(S.al.has(si))return S.al.get(si);
+        const seg=S.sess.segments[si];
+        const pending=fetch(`/api/autolabel?bucket=${encodeURIComponent(S.sess.bucket)}`+
+          `&prefix=${encodeURIComponent(segPfx(si))}&seg=${encodeURIComponent(seg.name)}`)
+          .then(response=>response.json()).then(data=>{S.al.set(si,data);return data});
+        S.al.set(si,pending);return pending;
+      };
+    }''')
+    page.add_script_tag(content=PRELOAD)
+    page.locator('#start_auto_load').click()
+    page.wait_for_function("document.querySelector('.nl-load-count').textContent==='Ready 8 / 8 images'")
+    page.wait_for_function("document.querySelector('.nl-load-bbox-count').textContent==='BBoxes ready 8 / 8 segments'")
+    assert page.evaluate('autoLabelCalls')==[f'segment-{i}' for i in range(8)]
+    assert page.evaluate('autoLabelPeak')<=2
+    assert page.evaluate('S.al.size')==0, 'Raw bbox responses must stay on disk until a frame needs them'
+    page.evaluate('void show(7)')
+    page.wait_for_function('S.shownG===7 && S.al.has(7)')
+    assert page.evaluate('autoLabelCalls.length')==8, 'Showing a preloaded bbox must not hit the server again'
+    page.evaluate('void show(4)')
+    page.wait_for_function('S.shownG===4')
+    page.wait_for_function("document.querySelector('.nl-load-parts').textContent==='Phone call + Bottle'")
+    page.wait_for_function("document.querySelector('.nl-load-bbox-count').textContent==='BBoxes ready 8 / 8 segments'")
+    assert page.evaluate('autoLabelCalls.slice(8)')==[f'segment-{i}' for i in range(8,12)]
+    before=page.evaluate('autoLabelCalls.length')
+    page.evaluate("fetch('/api/autolabel?bucket=fixture&prefix=test%2Fsegment-0%2F&seg=segment-0')")
+    page.wait_for_function('(n)=>autoLabelCalls.length>n',arg=before)
+    assert page.evaluate('autoLabelCalls.length')==before+1, 'Released part bbox data must no longer be served from disk'
+    assert page.evaluate('autoLabelPeak')<=2
+    assert not errors,errors
+    page.close()
+    print('PASS: auto_load_img keeps raw bbox segments on disk, serves them without another request, uses <=2 downloads and releases the previous part')
 
 
 def test_playback_stall(browser):
@@ -426,6 +523,8 @@ def main():
             test_large_list(browser)
             test_cached_space(browser)
             test_cross_segment_annotations(browser)
+            test_direct_navigation_waits_for_annotations(browser)
+            test_auto_load_preloads_bboxes(browser)
             test_playback_stall(browser)
             test_pending_playback(browser)
             test_playback_speed_and_filters(browser)

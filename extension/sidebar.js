@@ -201,6 +201,46 @@
   }
 
   function ensureOrganizedPlayback() {
+    if (!state.annotationReadyShowInstalled && typeof show === "function" &&
+        typeof getFrame === "function" && typeof drawBar === "function") {
+      const nativeShow = show;
+      show = async function (target) {
+        if (!pageLabelingReady() || !Number.isFinite(Number(target))) {
+          return nativeShow.apply(this, arguments);
+        }
+        const g = Math.max(0, Math.min(S.G - 1, Number(target)));
+        const request = {
+          token: ++state.annotationShowToken,
+          session: S.sess,
+          generation: S.gen,
+          label: S.labelSel,
+          width: S.w,
+          quality: S.q,
+          g
+        };
+        const stillCurrent = () => state.annotationShowToken === request.token &&
+          S.mode === "label" && S.sess === request.session && S.gen === request.generation &&
+          S.labelSel === request.label && S.w === request.width && S.q === request.quality && S.g === g;
+        // Update the navigation cursor immediately so repeated D/A presses can
+        // keep moving, but retain the previous displayed image until both the
+        // target bitmap and its annotations are ready.
+        S.g = g;
+        drawBar();
+        const spinner = document.getElementById("spin");
+        if (spinner) spinner.hidden = false;
+        try {
+          await Promise.all([getFrame(g), requestPlaybackAutoLabel(g)]);
+          if (!stillCurrent()) return;
+          return await nativeShow.call(this, g);
+        } catch (_) {
+          if (!stillCurrent()) return;
+          return nativeShow.call(this, g);
+        } finally {
+          if (state.annotationShowToken === request.token && spinner) spinner.hidden = true;
+        }
+      };
+      state.annotationReadyShowInstalled = true;
+    }
     if (!state.organizedPlaybackInstalled && typeof playNext === "function") {
       const nativePlayNext = playNext;
       playNext = function (g, step = 1) {
@@ -758,7 +798,10 @@
     const caption = document.createElement("span");
     caption.textContent = "Done all";
     doneLabel.append(done, caption);
-    done.addEventListener("change", () => { setWholePartState(row, done.checked ? "done" : "wip"); });
+    done.addEventListener("change", () => {
+      done.blur();
+      setWholePartState(row, done.checked ? "done" : "wip");
+    });
     doneLabel.addEventListener("keydown", (event) => event.stopPropagation());
     doneLabel.addEventListener("click", (event) => event.stopPropagation());
     partTools.append(partTotal, doneLabel);

@@ -92,6 +92,18 @@ class Server:
                 await route.fulfill(json={"frames": frames})
             finally:
                 self.active -= 1
+        elif url.path == "/api/autolabel":
+            # auto_load_img stores the production raw auto-label response on
+            # disk independently of the fixture's /api/al count-filter loader.
+            segment = int(args["seg"][0][1:])
+            if self.boxes_fn is not None:
+                frames = {str(i): {"body": [{"box": b} for b in self.boxes_fn(segment * SEGMENT + i)]}
+                          for i in range(SEGMENT)}
+            else:
+                frames = {str(i): {"body": [{"box": [k, k, k + 5, k + 5]}
+                                             for k in range(box_count(segment * SEGMENT + i))]}
+                          for i in range(SEGMENT)}
+            await route.fulfill(json={"frames": frames})
         elif url.path == "/api/frame":
             self.images.append((args["seg"][0], int(args["i"][0])))
             await route.fulfill(body=PNG, content_type="image/png")
@@ -207,24 +219,29 @@ async def test_navigation_and_edits(browser):
     await counts_ready(page)
     await page.locator("#nl-bbox-counts").blur()
     await page.keyboard.press("d")
+    await page.wait_for_function("S.shownG === 5")
     assert await page.evaluate("S.shownG") == 5
     await page.keyboard.press("Shift+d")
+    await page.wait_for_function("S.shownG === 45")
     assert await page.evaluate("S.shownG") == 45
     await page.keyboard.press("a")
+    await page.wait_for_function("S.shownG === 41")
     assert await page.evaluate("S.shownG") == 41
     assert await page.evaluate("playNext(5,1)") == 9
     assert await page.evaluate("playNext(5,3)") == 17
     assert await page.evaluate("playNext(497,1)") == 497, "Last matching frame ends playback"
 
     # Editing the current frame to 2 boxes hides it after the throttled refresh.
-    await page.evaluate("show(9);ED.items=[{box:[0,0,5,5]},{box:[9,9,20,20]}];edSave()")
+    await page.evaluate("async()=>{await show(9);ED.items=[{box:[0,0,5,5]},{box:[9,9,20,20]}];edSave()}")
     await page.wait_for_function("document.querySelector('#labList li[data-g=\"9\"]').hidden")
     # A hidden current frame resumes at its nearest visible neighbor.
     assert await page.evaluate("playNext(9,1)") == 13
     await page.keyboard.press("a")
+    await page.wait_for_function("S.shownG === 5")
     assert await page.evaluate("S.shownG") == 5
     await page.evaluate("show(9)")
     await page.keyboard.press("d")
+    await page.wait_for_function("S.shownG === 13")
     assert await page.evaluate("S.shownG") == 13
     # An explicit empty edit counts as 0 boxes and wins over auto-labels.
     await set_counts(page, "0")
@@ -329,6 +346,7 @@ async def test_hidden_frame_after_last_match(browser):
     await page.keyboard.press("d")
     assert await page.evaluate("S.shownG") == 550
     await page.keyboard.press("a")
+    await page.wait_for_function("S.shownG === 497")
     assert await page.evaluate("S.shownG") == 497
     assert not errors, errors
     await page.close()
@@ -542,19 +560,22 @@ async def test_bbox_warn_filter(browser):
 
     # Navigation (D, A, playNext) follows only the warning frames displayed in the sidebar.
     await page.keyboard.press("d")
+    await page.wait_for_function("S.shownG === 25")
     assert await page.evaluate("S.shownG") == 25
     await page.keyboard.press("d")
+    await page.wait_for_function("S.shownG === 40")
     assert await page.evaluate("S.shownG") == 40
     await page.keyboard.press("a")
+    await page.wait_for_function("S.shownG === 25")
     assert await page.evaluate("S.shownG") == 25
     assert await page.evaluate("playNext(25, 1)") == 40
     assert await page.evaluate("playNext(60, 1)") == 170
 
     # Fix frame 12 to normal 2 boxes and use Ctrl+B to copy to the next 2 frames in clip 0.
     # Because Ctrl+B follows the sidebar filter, the next 2 frames in clip 0 are [25, 40] (NOT 13, 14).
-    await page.evaluate("""() => {
+    await page.evaluate("""async () => {
       S.fstat[rvKey(12)] = {body: {s: 'wip'}};
-      show(12);
+      await show(12);
       ED.items = [{box:[100,120,420,760]}, {box:[900,130,1210,750]}];
       edSave();
     }""")

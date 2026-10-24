@@ -1,5 +1,5 @@
-// Keep compressed images for at most two labeling parts. Background downloads
-// never call show(), decode an image, or read/write annotation data.
+// Keep compressed images and raw auto-label responses for at most two labeling
+// parts. Background downloads never call show() or decode image/bbox data.
 (() => {
   "use strict";
   const FLAG = "__notaPartImagePreloaderV1";
@@ -12,6 +12,7 @@
   const PARALLEL = /^h[23]/.test(performance.getEntriesByType("navigation")[0]?.nextHopProtocol || "") ? 6 : 4;
   const YIELD_POLL_MS = 50;
   const REQUEST_TIMEOUT = 20000;
+  const BBOX_PARALLEL = 2;
   const FILTER_API = "__notaBboxFilterV1"; // Published by content.js.
   const rawFetch = window.fetch.bind(window); // Retain DMS authentication/CSRF handling.
   const tabId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -32,6 +33,12 @@
   let filterRevision = null;
   let windowRevision = null; // Filter revision the current two-part window was chosen with.
   const pending = new Map();
+  let bboxOwner = null;
+  let bboxEntries = [];
+  let bboxCursor = 0;
+  let bboxByURL = new Map();
+  const bboxCached = new Set();
+  const bboxFailed = new Map();
 
   const ready = () => typeof S !== "undefined" && S.mode === "label" && !!S.sess;
   const matchesScope = () => ready() && scope && scope.session === S.sess &&
@@ -117,6 +124,16 @@
       `&seg=${encodeURIComponent(S.sess.segments[si].name)}&i=${i}&w=${S.w}&q=${S.q}`, location.origin).href;
   }
 
+  function bboxURL(g) {
+    try {
+      const [si] = loc(g);
+      const segment = S.sess.segments[si];
+      if (!segment?.al) return null;
+      return new URL(`/api/autolabel?bucket=${encodeURIComponent(S.sess.bucket)}` +
+        `&prefix=${encodeURIComponent(segPfx(si))}&seg=${encodeURIComponent(segment.name)}`, location.origin).href;
+    } catch (_) { return null; }
+  }
+
   const shownFrame = () => Number.isInteger(S.shownG) && S.shownG >= 0 ? S.shownG : S.g;
 
   function partAtCurrentFrame() {
@@ -163,6 +180,47 @@
   function syncFilter() {
     filterRevision = currentFilterRevision();
     for (const slot of slots) indexWanted(slot);
+  }
+
+  async function syncBboxEntries() {
+    const seen = new Set();
+    const entries = [];
+    for (const slot of slots) {
+      for (const entry of slot.entries) {
+        if (!slot.wanted.has(entry.url)) continue;
+        const url = bboxURL(entry.g);
+        if (!url || seen.has(url)) continue;
+        seen.add(url);
+        entries.push({ g: entry.g, url });
+      }
+    }
+    const removed = [...bboxCached].filter((url) => !seen.has(url));
+    for (const url of removed) bboxCached.delete(url);
+    for (const url of [...bboxFailed.keys()]) if (!seen.has(url)) bboxFailed.delete(url);
+    for (const request of pending.values()) {
+      if (request.kind === "bbox" && !request.foreground && !seen.has(request.url)) {
+        request.cancelled = true;
+        request.controller.abort();
+      }
+    }
+    const owner = bboxOwner;
+    if (removed.length && database && owner) {
+      await storage("readwrite", (images, owners) => {
+        for (const url of removed) images.delete([owner, url]);
+        return owners.put({ id: owner, expires: Date.now() + 86400000 });
+      });
+    }
+    if (owner !== bboxOwner) return;
+    bboxEntries = entries;
+    bboxByURL = new Map(entries.map((entry) => [entry.url, entry]));
+    bboxCursor = 0;
+  }
+
+  function bboxProgress() {
+    if (!bboxEntries.length) return null;
+    let loaded = 0;
+    for (const entry of bboxEntries) if (bboxCached.has(entry.url)) loaded += 1;
+    return { loaded, total: bboxEntries.length, failed: bboxFailed.size };
   }
 
   function countWanted(slot, urls) {
@@ -221,8 +279,19 @@
     clearTimeout(timer);
     stopRequests();
     const old = slots;
+    const oldBboxOwner = bboxOwner;
     slots = [];
     for (const slot of old) release(slot).catch(() => {});
+    bboxOwner = null;
+    bboxEntries = [];
+    bboxCursor = 0;
+    bboxByURL.clear();
+    bboxCached.clear();
+    bboxFailed.clear();
+    if (database && oldBboxOwner) storage("readwrite", (images, owners) => {
+      images.delete(ownerRange(oldBboxOwner));
+      return owners.delete(oldBboxOwner);
+    }).catch(() => {});
     scope = null;
     parts = [];
     lastPart = -1;
@@ -260,6 +329,7 @@
       // keeps the displayed total stable until released owners are deleted.
       syncFilter();
       slots.sort((a, b) => parts.indexOf(a.part) - parts.indexOf(b.part));
+      await syncBboxEntries();
       if (!slots.length) { running = false; message = "All remaining parts are Done."; }
     } catch (error) { storageFailed(error); }
     finally { changing = false; render(); schedule(); }
@@ -281,7 +351,7 @@
       if (foreground) existing.foreground = true;
       return existing.promise;
     }
-    const request = { slot, foreground, controller: new AbortController(), promise: null };
+    const request = { kind: "image", slot, url: entry.url, foreground, controller: new AbortController(), promise: null };
     pending.set(key, request);
     request.promise = (async () => {
       if (slot.cached.has(entry.url)) {
@@ -333,6 +403,68 @@
     return request.promise;
   }
 
+  function loadBbox(entry, foreground = false, init = {}) {
+    const owner = bboxOwner;
+    const key = `${owner}|${entry.url}`;
+    const existing = pending.get(key);
+    if (existing && !existing.controller.signal.aborted) {
+      if (foreground) existing.foreground = true;
+      return existing.promise;
+    }
+    const request = {
+      kind: "bbox", slot: null, url: entry.url, foreground,
+      controller: new AbortController(), promise: null
+    };
+    pending.set(key, request);
+    request.promise = (async () => {
+      if (bboxCached.has(entry.url)) {
+        try {
+          const saved = await storage("readonly", (images) => images.get([owner, entry.url]));
+          if (saved?.blob) return saved.blob;
+          bboxCached.delete(entry.url);
+        } catch (error) { storageFailed(error); }
+      }
+      if (!owner || owner !== bboxOwner || !matchesScope()) throw new DOMException("Scope changed", "AbortError");
+      const timeout = setTimeout(() => request.controller.abort(), REQUEST_TIMEOUT);
+      let blob;
+      try {
+        const response = await rawFetch(entry.url, {
+          ...init, credentials: "same-origin",
+          priority: request.foreground ? "high" : "low", signal: request.controller.signal
+        });
+        if (!response.ok) {
+          const error = new Error(`HTTP ${response.status}`);
+          error.response = response;
+          throw error;
+        }
+        blob = await response.blob();
+        if (!blob.size || !/json/i.test(blob.type)) throw new Error("The server did not return bbox data.");
+      } finally { clearTimeout(timeout); }
+      if (owner === bboxOwner && bboxByURL.has(entry.url) && matchesScope() && !request.controller.signal.aborted) {
+        try {
+          await storage("readwrite", (images, owners) => {
+            if (owner !== bboxOwner || !bboxByURL.has(entry.url) || !matchesScope()) return;
+            owners.put({ id: owner, expires: Date.now() + 86400000 });
+            return images.put({ owner, url: entry.url, blob });
+          });
+          if (owner === bboxOwner && bboxByURL.has(entry.url) && matchesScope()) {
+            bboxCached.add(entry.url);
+            bboxFailed.delete(entry.url);
+          }
+        } catch (error) { storageFailed(error); }
+      }
+      return blob;
+    })().catch((error) => {
+      if (request.cancelled) error.preloadCancelled = true;
+      throw error;
+    }).finally(() => {
+      if (pending.get(key) === request) pending.delete(key);
+      render();
+      schedule();
+    });
+    return request.promise;
+  }
+
   // Refill as soon as a request settles; poll only while yielding to DMS traffic.
   function schedule(delay = 0) {
     clearTimeout(timer);
@@ -350,13 +482,41 @@
     else setTimeout(pulse, 0);
   }
 
+  function pumpBboxes() {
+    const limit = statusWrites > 0 || S.inflight?.size > 0 ? 1 : BBOX_PARALLEL;
+    let active = [...pending.values()].filter((request) => request.kind === "bbox" &&
+      !request.foreground && !request.controller.signal.aborted).length;
+    while (bboxCursor < bboxEntries.length && active < limit) {
+      const entry = bboxEntries[bboxCursor++];
+      if (bboxCached.has(entry.url) || bboxFailed.has(entry.url)) continue;
+      const live = pending.get(`${bboxOwner}|${entry.url}`);
+      if (live && !live.controller.signal.aborted) continue;
+      active += 1;
+      loadBbox(entry).catch((error) => {
+        if (!bboxByURL.has(entry.url)) return;
+        if (error.name === "AbortError") {
+          if (running && !error.preloadCancelled) bboxFailed.set(entry.url, "Request timed out");
+        } else {
+          bboxFailed.set(entry.url, error.message);
+          if ([401, 403].includes(error.response?.status)) {
+            running = false;
+            stopRequests();
+            message = `${error.message}. Check your access, then start again.`;
+          }
+        }
+        render();
+      });
+    }
+  }
+
   function pump() {
     if (!running || changing || !matchesScope()) return;
     // Keep one background request while DMS is saving statuses or fetching
     // foreground frames, so Done all cannot freeze the preload progress.
     const yielding = statusWrites > 0 || S.inflight?.size > 0;
     const limit = yielding ? 1 : PARALLEL;
-    let active = [...pending.values()].filter((request) => !request.foreground && !request.controller.signal.aborted).length;
+    let active = [...pending.values()].filter((request) => request.kind === "image" &&
+      !request.foreground && !request.controller.signal.aborted).length;
     for (const slot of slots) {
       while (slot.cursor < slot.entries.length && active < limit) {
         const entry = slot.entries[slot.cursor++];
@@ -382,6 +542,7 @@
       }
       if (active >= limit) break;
     }
+    pumpBboxes();
     if (yielding) schedule(YIELD_POLL_MS);
     render();
   }
@@ -400,9 +561,14 @@
     const caption = `${status} ${loaded.toLocaleString()} / ${total.toLocaleString()} images` +
       `${failed ? ` · ${failed} failed` : ""}${waiting ? ` · ${waiting} awaiting BBox counts` : ""}`;
     const names = message || (slots.length ? slots.map((slot) => slot.part.name).join(" + ") : "Current part + next part");
+    const bboxes = bboxProgress();
     if (panel.querySelector(".nl-load-count").textContent !== caption) panel.querySelector(".nl-load-count").textContent = caption;
     if (panel.querySelector(".nl-load-parts").textContent !== names) panel.querySelector(".nl-load-parts").textContent = names;
-    panel.title = `Up to 2 parts, ${PARALLEL} background downloads. Stop keeps downloaded images. Start retries missing images.`;
+    panel.querySelector(".nl-load-bbox-count").textContent = bboxes
+      ? `${bboxes.loaded === bboxes.total ? "BBoxes ready" : "Loading BBoxes"} ${bboxes.loaded.toLocaleString()} / ${bboxes.total.toLocaleString()} segments` +
+        `${bboxes.failed ? ` · ${bboxes.failed} failed` : ""}`
+      : "";
+    panel.title = `Up to 2 parts, ${PARALLEL} image downloads and ${BBOX_PARALLEL} bbox segment downloads. Stop keeps downloaded data.`;
     panel.querySelector("progress").max = Math.max(1, total);
     panel.querySelector("progress").value = loaded;
   }
@@ -413,6 +579,7 @@
     if (!matchesScope()) {
       clearScope();
       scope = { session: S.sess, generation: S.gen, label: S.labelSel, width: S.w, quality: S.q };
+      bboxOwner = `${tabId}-bbox-${++ownerSequence}`;
       parts = collectParts();
     }
     if (!parts.length) { message = "Open a labeled part first."; render(); return; }
@@ -423,6 +590,8 @@
     await setWindow(index);
     orderedFrame = shownFrame();
     for (const slot of slots) { prioritize(slot); slot.failed.clear(); }
+    bboxFailed.clear();
+    await syncBboxEntries();
     schedule();
     render();
   }
@@ -444,6 +613,7 @@
       .nl-image-preload button { border: 1px solid #66758a; border-radius: 4px; padding: 4px 7px; background: #253447; color: #eef5ff; cursor: pointer; font: inherit; font-size: 11px; }
       .nl-image-preload button:disabled { opacity: .5; cursor: default; }
       .nl-load-count { flex: 1 1 100%; font-size: 11px; color: #a5e3ba; }
+      .nl-load-bbox-count { flex: 1 1 100%; font-size: 10px; color: #b7cdf1; }
       .nl-load-parts { min-width: 0; flex: 1 1 100%; font-size: 10px; color: #becadc; overflow-wrap: anywhere; }
       .nl-image-preload progress { width: 100%; height: 5px; accent-color: #59b780; }
     `;
@@ -453,6 +623,7 @@
     panel.innerHTML = `<button type="button" id="start_auto_load" class="nl-load-start" aria-label="Start auto loading images">auto_load_img</button>
       <button type="button" id="stop_auto_load" class="nl-load-stop">Stop</button>
       <span class="nl-load-count" role="status" aria-live="polite"></span>
+      <span class="nl-load-bbox-count" role="status" aria-live="polite"></span>
       <progress aria-label="Images loaded for the current two parts" max="1" value="0"></progress>
       <span class="nl-load-parts"></span>`;
     toolbar.appendChild(panel);
@@ -491,6 +662,9 @@
       orderedFrame = shown;
       const slot = slots.find((candidate) => candidate.part === parts[current]);
       if (slot) prioritize(slot);
+      syncBboxEntries().then(() => schedule()).catch(storageFailed);
+      render();
+      return;
     }
     schedule();
     render();
@@ -504,6 +678,15 @@
     if (url.origin === location.origin && url.pathname === "/api/frame_status" && method !== "GET") {
       statusWriteStarted();
       return rawFetch(input, init).finally(statusWriteFinished);
+    }
+    if (url.origin === location.origin && url.pathname === "/api/autolabel" && method === "GET" &&
+        typeof input === "string" && !init.signal && matchesScope()) {
+      const entry = bboxByURL.get(url.href);
+      if (entry && (running || bboxCached.has(entry.url))) {
+        return loadBbox(entry, true, init).then((blob) => new Response(blob, {
+          status: 200, headers: { "Content-Type": blob.type || "application/json" }
+        })).catch((error) => error.response || rawFetch(input, init));
+      }
     }
     if (url.origin !== location.origin || url.pathname !== "/api/frame" || method !== "GET" ||
         typeof input !== "string" || init.signal || !matchesScope()) return rawFetch(input, init);

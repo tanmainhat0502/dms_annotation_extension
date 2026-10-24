@@ -4,11 +4,11 @@ Run: python tests/test_sidebar_status.py
 All DMS responses are local fixtures; no live annotation data is changed.
 """
 import asyncio
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from playwright.async_api import async_playwright
 
-from test_bbox_filter import SCRIPT, fixture
+from test_bbox_filter import PNG, SCRIPT, fixture
 
 # Counts DOM queries made by one patched fsRender() after a single status change.
 COUNT_QUERIES = """(g) => {
@@ -31,9 +31,15 @@ class Server:
         self.statuses = []
 
     async def route(self, route):
-        path = urlparse(route.request.url).path
+        url = urlparse(route.request.url)
+        path = url.path
         if path == "/":
             await route.fulfill(body=self.html, content_type="text/html")
+        elif path == "/api/frame":
+            await route.fulfill(body=PNG, content_type="image/png")
+        elif path == "/api/al":
+            segment = int(parse_qs(url.query)["si"][0])
+            await route.fulfill(json={"frames": {str(i): {} for i in range(100)}})
         elif path == "/api/label_edit":
             self.label_edits.append(route.request.post_data_json)
             await route.fulfill(json={})
@@ -116,7 +122,10 @@ async def test_frame_markers(browser):
     assert await page.locator("#labList li.nl-marked-frame").count() == 1
 
     # Switching to a non-bbox label swaps marker sets; marks survive status changes and reset on label change.
-    await page.evaluate("S.labelSel = 'seatbelt'; S.fstat[rvKey(105)] = {seatbelt: {s: 'done'}}; show(105); renderLabList()")
+    await page.evaluate("""async()=>{
+      S.labelSel='seatbelt';S.fstat[rvKey(105)]={seatbelt:{s:'done'}};
+      await show(105);renderLabList();
+    }""")
     assert await marked_frames(page) == []
     await page.keyboard.press("v")
     assert await marked_frames(page) == [[105, "✓ V", True]]
@@ -132,14 +141,14 @@ async def test_frame_markers(browser):
 
 async def test_seatbelt_bulk_skips_unchanged(browser):
     page, server, errors = await open_page(browser, 600, 10)
-    await page.evaluate("""() => {
+    await page.evaluate("""async () => {
       S.labelSel = 'seatbelt';
       S.sess.src_w = 4; S.sess.src_h = 2; S.ts = [];
       const mask = counts => ({seatbelt: [{rle: {size: [2, 4], counts}}]});
       S.ledits[rvKey(10)] = mask([2, 2, 4]);
       S.ledits[rvKey(11)] = mask([2, 2, 4]);  // Already contains the source mask.
       S.ledits[rvKey(12)] = mask([8]);
-      show(10);
+      await show(10);
     }""")
     await page.keyboard.press("Control+b")
     await page.wait_for_selector("#nl-seatbelt-bulk[open]")

@@ -1,10 +1,10 @@
-# Manual testing: 1.6.41
+# Manual testing: 1.6.42
 
 Use this checklist to verify cached playback, the timeline lock, bbox editing, sticky clip controls, and image preloading in your DMS environment.
 
 ## Install
 
-1. Extract `dist/NOTA_Labeling_Organizer_Extension_v1.6.41.zip`, or use this repository's `extension` folder.
+1. Extract `dist/NOTA_Labeling_Organizer_Extension_v1.6.42.zip`, or use this repository's `extension` folder.
 2. In `chrome://extensions`, disable the older Organizer version. Click **Load unpacked** and select the folder containing `manifest.json`.
 3. Reload the DMS tab. Open **Labeling**, choose a label, and open a frame.
 4. Find **auto_load_img** and **Stop** directly below the part search field.
@@ -22,7 +22,7 @@ Use this checklist to verify cached playback, the timeline lock, bbox editing, s
 - Test a fully Done clip: **Done** must be enabled so it can be reopened; the other source buttons must be disabled. Try keyboard Enter/Space/arrows/Esc, clicking outside, and scrolling with a menu open. The menu must not toggle the clip or trigger playback. Repeating a partially failed transition should save only remaining source frames.
 - Find **Done all** below a part's frame count in the left column. Scroll up/down inside a long part and resize the window: the checkbox and count should remain visible. Move into another part and verify its control takes over.
 - Tick Done all on a part you intend to complete. The count shows save progress, then all its clips/frames become Done. Untick it: all frames become In progress. Other parts, labels, and annotation boxes must stay unchanged. Check collapsed clips, a partially Done part (dash), and keyboard Space on the focused checkbox.
-- While a large Done all save is still counting upward, press `R` on a selected bbox and `C` on another frame. Both edits must happen immediately. Keep **auto_load_img** running and verify its loaded count also continues increasing, at a reduced single-request background rate.
+- While a large Done all save is still counting upward, press `R` on a selected bbox, `C` on another frame, and `Z` to undo. All three edits must happen immediately without clicking the canvas to restore focus. Keep **auto_load_img** running and verify its loaded count also continues increasing, at a reduced single-request background rate.
 - With **Show done** unchecked, the action must still cover the complete current-label part. Completed parts disappear; check **Show done** to see and untick the part again. If a request fails, the checkbox must reflect only successful saves and show an error; retry Done to save the remaining frames. Switching label/session during saving must stop new queued requests.
 - With auto_load_img running and **Show done** unchecked, Done all must advance its two-part cache only after the whole part's Done saves succeed (with **Show done** checked, the Done part remains in the sidebar and stays cached until you move to the next part or hide Done frames). Test that opening/closing clips and scrolling during saves keep the control accessible.
 - Place a hand box against the bottom image edge. Drag its bottom-right handle horizontally while moving slightly in and out of the black margin: the width should keep following the pointer without freezing or jumping on re-entry. Release outside: the saved bottom edge should be clipped to the image.
@@ -31,8 +31,8 @@ Use this checklist to verify cached playback, the timeline lock, bbox editing, s
 - Jump directly to a frame without viewing its predecessor; C must still find the nearest earlier frame with boxes. Check an explicitly deleted/empty predecessor and a Done predecessor hidden by status filters. The source should always be the same label and session. With no earlier nonempty source, current boxes must remain untouched.
 - After C, press `Z` to restore the target. `Shift+C` should copy then advance once. While source data loads, switch frame/label/session or edit the current box: the pending copy must not overwrite that new context or edit. Check that Ctrl+C/Ctrl+V still use the explicit clipboard selection.
 - Load a large part with **auto_load_img**, wait for **Ready**, then press `Space` at 1x. Check that frames advance in order and the sidebar follows without repeated long pauses. Press `Space` again to pause; edit a box and check that the sidebar does not jump during repaint.
-- In **Other**, play through frames collected from different source segments. Every displayed frame must already show its bbox; it must not require going back and waiting. A segment whose auto-label is not cached may pause playback once while loading, then continue. Check that at most two lookahead auto-label segment requests run together.
-- Compare `D` and `Space` on the same cached clip. Space should present roughly 10 frames/second at 1×, even where source timestamps repeat or have gaps. Try 0.5×, 2× and 3×, then change speed while playing. After a temporary rendering/decode delay, frames should resume evenly instead of rushing through several at once. Slow hardware or an uncached image can still delay an individual frame.
+- In **Other**, wait until the toolbar says **BBoxes ready**, then play through frames collected from different source segments. Every displayed frame must already show its bbox; it must not require going back and waiting. Check that at most two background bbox-segment requests run together and that changing parts releases the old part's bbox cache.
+- Compare fast repeated `D` presses and `Space` on the same cached clip. The old frame should remain visible until both the latest target image and its bbox are ready; intermediate targets may be skipped, but the latest target must never appear without boxes. Space should present roughly 10 frames/second at 1×, even where source timestamps repeat or have gaps. Try 0.5×, 2× and 3×, then change speed while playing. After a temporary rendering/decode delay, frames should resume evenly instead of rushing through several at once.
 - Pause while an image is loading, select another frame, and resume. The old image must not replace the new frame or stop the new playback run. Change label/session while loading and check the same. An image-load failure should pause with a retry message; Space should retry that frame. Review modes should retain their original timing.
 - During playback, search for a different part, clear the search, change labels, and switch sessions. Navigation must use the new list and stop at its last frame. Mark Done with Show done unchecked, then reopen a frame: the displayed rows and status must stay correct.
 - Click the padlock to the right of the bottom timeline. It should close and turn gold. Click, double-click, or drag near either end of the timeline: the current frame must stay in place. Click the lock again and verify timeline clicks navigate normally.
@@ -50,7 +50,7 @@ Use this checklist to verify cached playback, the timeline lock, bbox editing, s
 - Collapse the clip using the pinned toggle, then reopen it. Scroll into another expanded clip and confirm that its own header takes over.
 - Mark a long clip Done and collapse it while scrolled near its end. Its header must remain visible instead of jumping to a later part. Repeat by collapsing while Done is still saving, and with the following clips already collapsed.
 - Resize the sidebar/window and check that the pinned controls do not overlap the toolbar. Use `A` / `D` to reveal frames and confirm they are not hidden behind the pinned controls.
-- Click **auto_load_img** in part 1. Confirm the names show parts 1 and 2, and the denominator is their combined frame count.
+- Click **auto_load_img** in part 1. Confirm the names show parts 1 and 2, the image denominator is their combined frame count, and the bbox line reaches **BBoxes ready _ / _ segments**.
 - Edit labels and use `A`, `D`, or `Space` while loading. The loader must not change the displayed frame or annotation data.
 - Leave playback paused. The image count should continue increasing without further input.
 - Click **Stop**. The count should stabilize; completed images remain available. Click **auto_load_img** to continue missing images without reloading the completed ones.

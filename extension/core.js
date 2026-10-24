@@ -6,7 +6,7 @@
   const bboxCountForFrame = (...args) => NL.bboxCountForFrame(...args);
   const scheduleBboxFilterRefresh = (...args) => NL.scheduleBboxFilterRefresh(...args);
 
-  const VERSION = "1.6.41";
+  const VERSION = "1.6.42";
 
   const ROOT_ID = "nota-labeling-organizer-v1";
 
@@ -143,6 +143,8 @@
     statusRenderingInstalled: false,
     organizedPlaybackInstalled: false,
     organizedPlaybackLoopInstalled: false,
+    annotationReadyShowInstalled: false,
+    annotationShowToken: 0,
     labelVisibilityInstalled: false,
     eyePanelHintInstalled: false,
     eyeGroupDraggingInstalled: false,

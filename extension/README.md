@@ -1,6 +1,6 @@
 # NOTA Labeling Organizer — usage guide
 
-**Version 1.6.41 · English**
+**Version 1.6.42 · English**
 
 For installation screenshots and the complete shortcut tables, see the [GitHub README](https://github.com/tanmainhat0502/dms_annotation_extension#readme).
 
@@ -29,7 +29,7 @@ Status changes affect only the active label, preserve annotations, and send up t
 
 To set an entire part's status, use **Done all** below its frame count in the left column. Tick it to mark all frames **Done**; untick it to make all frames **In progress**. A dash means only some frames are Done. The count and checkbox stay visible while scrolling within that part.
 
-This action covers the current label's whole part, including closed clips and frames hidden by status filters. It pauses playback, shows saved/total progress, and saves up to four frames at a time. BBox editing remains available, so `R` and `C` work immediately, and **auto_load_img** continues with one background request; the open frame's status is saved last. Other parts, labels, and annotations stay unchanged. A failed request stops further saves; successful saves remain. Switching session, label, or mode stops queued requests. Enable **Show done** to see completed parts and reopen them with the checkbox.
+This action covers the current label's whole part, including closed clips and frames hidden by status filters. It pauses playback, shows saved/total progress, and saves up to four frames at a time. BBox editing remains available, so `R`, `C`, and `Z` work immediately after clicking the checkbox, and **auto_load_img** continues with one background request; the open frame's status is saved last. Other parts, labels, and annotations stay unchanged. A failed request stops further saves; successful saves remain. Switching session, label, or mode stops queued requests. Enable **Show done** to see completed parts and reopen them with the checkbox.
 
 While you scroll through an expanded clip, its header stays below the search/image-loading toolbar. You can collapse the clip or use its status buttons without scrolling back to the beginning. The next clip's header takes its place as you scroll into that clip.
 
@@ -37,17 +37,17 @@ Collapsing a clip keeps its header in view instead of jumping to another part, i
 
 ## Load images while you work
 
-Click **auto_load_img** below the part search box. It downloads the current part and the next part that has frames in the sidebar, using up to four background requests (six over HTTP/2 or HTTP/3). Loading runs sequentially from the open frame to the end of the part, then fills earlier frames, including Done frames when **Show done** is enabled. The progress counter is the number of images stored / all sidebar-matching images in those two parts. Editing and navigation remain available; loading continues while you pause playback or stop interacting.
+Click **auto_load_img** below the part search box. It downloads images and raw bbox responses for the current part and the next part that has frames in the sidebar, using up to four image requests (six over HTTP/2 or HTTP/3) and two bbox-segment requests. Loading runs sequentially from the open frame to the end of the part, then fills earlier frames, including Done frames when **Show done** is enabled. Separate counters show stored images and stored bbox segments for those two parts. Editing and navigation remain available; loading continues while you pause playback or stop interacting.
 
 When you move into the second part, or when all frames in the first part are hidden from the sidebar (for example, saved as Done while **Show done** is off), the extension releases the first part's cache and loads the next matching part: **1+2 → 2+3 → 3+4**. A failed Done save does not advance the pair. The last matching part loads alone.
 
 **Stop** cancels background requests and keeps completed images. Click **auto_load_img** again to fill the current part and the next matching part, keeping any already loaded images in that pair. This also retries failed images. Navigating to another part while the loader is running slides the two-part window to start at that part.
 
-Images are stored compressed in local browser storage; background loading does not decode thousands of bitmaps into RAM. Normal viewing uses those stored images, and `A` / `D` prepare up to three nearby frames. Some decoding or annotation loading delay may remain.
+Images and raw bbox responses are stored in local browser storage; background loading does not decode thousands of bitmaps or parse thousands of bbox objects into RAM. Normal viewing reads only what the current frame needs, and `A` / `D` prepare up to three nearby frames.
 
-In Labeling, `Space` plays the selected list at an even **10 frames/second at 1×**. The speed control still applies, including the viewer's frame stepping above 2×. Source timestamp gaps/repeats do not interrupt the cadence. The next image is requested first, with up to three following images prepared in advance and at most four outstanding viewer image loads started by this loop. Slow decoding/rendering delays playback instead of triggering a burst of overdue frames. Pause/resume and changing labels or sessions discard stale playback results. Review modes keep their original player.
+In Labeling, `Space` plays the selected list at an even **10 frames/second at 1×**. The speed control still applies, including the viewer's frame stepping above 2×. Source timestamp gaps/repeats do not interrupt the cadence. Fast `A` / `D`, sidebar selection, timeline jumps, and `Space` retain the previous display until the target image and bbox data are both ready; stale rapid-navigation results are discarded. Slow decoding/rendering delays presentation instead of showing a frame without its boxes or triggering a burst of overdue frames. Pause/resume and changing labels or sessions discard stale results. Review modes keep their original player.
 
-The background limit applies per tab and drops to one request while the viewer fetches frames or frame statuses are saving; there is no fixed images-per-second limit. Speed and server load depend on the connection, server capacity, and number of users or tabs loading images.
+The image background limit applies per tab and drops to one request while the viewer fetches frames or frame statuses are saving. Bbox loading uses at most two requests and also drops to one during foreground work. There is no fixed images-per-second limit. Speed and server load depend on the connection, server capacity, and number of users or tabs loading data.
 
 The pair includes every frame in those two parts that matches the active status filters (**Show done**, **Show in progress**, **Show not checked**) and the **BBox** filter. With a **BBox** filter, frames whose counts are still loading wait until they are known. Changing status or BBox filters keeps already downloaded images and updates the two-part window automatically. Changing session, label, image size/quality, leaving Labeling, or reloading the tab clears the preloader's cache. No annotation data is changed by preloading.
 
