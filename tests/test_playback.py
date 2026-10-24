@@ -211,12 +211,28 @@ def test_cached_space(browser):
 def test_space_keeps_sidebar_viewport(browser):
     page,errors,requests=open_page(browser,600)
     page.evaluate('''async()=>{
-      await show(0);window.painted=[];window.pauseAt=100;S.speedI=6;
+      await show(0);window.painted=[];window.pauseAt=200;S.speedI=6;
       const pane=document.querySelector('#labPane');pane.scrollTop=24;
       window.playbackSidebarStart={top:pane.scrollTop,left:pane.scrollLeft};
+      window.playbackAsyncRepaint=false;window.playbackAsyncListRender=false;
+      const originalPaint=paint;
+      paint=function(){
+        originalPaint();
+        if(S.playing && S.shownG===60 && !playbackAsyncRepaint){
+          playbackAsyncRepaint=true;
+          setTimeout(()=>{
+            document.querySelector('#labList li.cur')?.classList.remove('cur');
+            rvMarkLab();
+          },0);
+        }
+        if(S.playing && S.shownG===160 && !playbackAsyncListRender){
+          playbackAsyncListRender=true;
+          setTimeout(()=>renderLabList(),0);
+        }
+      };
     }''')
     page.keyboard.press('Space')
-    page.wait_for_function('S.shownG===100 && !S.playing')
+    page.wait_for_function('S.shownG===200 && !S.playing')
     position=page.evaluate('''()=>{
       const pane=document.querySelector('#labPane');
       return {top:pane.scrollTop,left:pane.scrollLeft,current:document.querySelector('#labList li.cur')?.dataset.g};
@@ -224,7 +240,14 @@ def test_space_keeps_sidebar_viewport(browser):
     start=page.evaluate('playbackSidebarStart')
     assert abs(position['top']-start['top'])<=1,(start,position)
     assert abs(position['left']-start['left'])<=1,(start,position)
-    assert position['current']=='100',position
+    assert position['current']=='200',position
+    assert page.evaluate('[playbackAsyncRepaint,playbackAsyncListRender]')==[True,True]
+    page.keyboard.press('d')
+    page.wait_for_function('S.shownG===201')
+    assert page.locator('li[data-g="201"]').evaluate('''el=>{
+      const row=el.getBoundingClientRect(),pane=document.querySelector('#labPane').getBoundingClientRect();
+      return row.bottom>pane.top && row.top<pane.bottom;
+    }'''), 'Deliberate D navigation must reveal the selected frame after playback'
     assert not errors,errors
     page.close()
     print('PASS: Space advances the current row through Other without dragging the sidebar viewport downward')

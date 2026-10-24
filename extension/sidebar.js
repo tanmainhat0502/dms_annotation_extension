@@ -546,7 +546,26 @@
     } else state.pane.scrollTop = position.top;
   }
 
+  function playbackKeepsSidebarPosition() {
+    return state.organizedPlaybackPainting || (pageLabelingReady() && S.playing);
+  }
+
+  function capturePlaybackSidebarPosition() {
+    if (!playbackKeepsSidebarPosition() || !state.pane) return null;
+    return { pane: state.pane, top: state.pane.scrollTop, left: state.pane.scrollLeft };
+  }
+
+  function restorePlaybackSidebarPosition(position) {
+    if (!position || position.pane !== state.pane) return;
+    position.pane.scrollTop = position.top;
+    position.pane.scrollLeft = position.left;
+  }
+
   function revealCurrentFrame(current = state.list?.querySelector("li.cur")) {
+    // Auto-label completion, resize observers and list rebuilds can repaint
+    // between player ticks. None of those background paints should follow the
+    // current row and pull the sidebar out of the user's chosen part.
+    if (playbackKeepsSidebarPosition()) return;
     ensureCurrentClipOpen(current);
     const pending = state.filterNavigation;
     if (pending && pending.session === S.sess && pending.generation === S.gen &&
@@ -563,7 +582,8 @@
       state.navigation = null;
       state.partIndex = null;
       if (state.renderingSidebar) return nativeRender.apply(this, args);
-      const position = state.sidebarRenderPosition || captureSidebarPosition();
+      const playbackPosition = capturePlaybackSidebarPosition();
+      const position = playbackPosition ? null : state.sidebarRenderPosition || captureSidebarPosition();
       state.sidebarRenderPosition = null;
       state.renderingSidebar = true;
       let result;
@@ -580,7 +600,8 @@
             state.list.textContent = message;
             if (typeof labEmptyView === "function") labEmptyView(message);
           }
-          if (position) restoreSidebarPosition(position);
+          if (playbackPosition) restorePlaybackSidebarPosition(playbackPosition);
+          else if (position) restoreSidebarPosition(position);
           else revealCurrentFrame();
         }
       }
@@ -601,21 +622,23 @@
             navigation.current?.classList.remove("cur");
             current.classList.add("cur");
             navigation.current = current;
-            if (!state.organizedPlaybackPainting) revealCurrentFrame(current);
+            revealCurrentFrame(current);
           }
           if (typeof lsBoxRender === "function") lsBoxRender();
           if (typeof r2Render === "function") r2Render();
           return;
         }
       }
-      const position = state.renderingSidebar ? null : captureSidebarPosition();
+      const playbackPosition = state.renderingSidebar ? null : capturePlaybackSidebarPosition();
+      const position = state.renderingSidebar || playbackPosition ? null : captureSidebarPosition();
       const result = nativeMark.apply(this, args);
       state.navigation = null;
       if (!state.renderingSidebar && pageLabelingReady()) {
         // Repaints also call scrollIntoView. Preserve the user's viewport on
         // the same frame, while genuine navigation still reveals the new row.
-        if (position) restoreSidebarPosition(position);
-        else if (!state.organizedPlaybackPainting) revealCurrentFrame();
+        if (playbackPosition) restorePlaybackSidebarPosition(playbackPosition);
+        else if (position) restoreSidebarPosition(position);
+        else revealCurrentFrame();
       }
       return result;
     };
@@ -949,7 +972,8 @@
     const hasCurrent = items.some((li) => li.classList.contains("cur"));
     details.classList.toggle("nl-current", hasCurrent);
     details.open = state.openClips.has(details.dataset.key) ||
-      (hasCurrent && !state.manuallyClosedClips.has(details.dataset.key));
+      (hasCurrent && !playbackKeepsSidebarPosition() &&
+        !state.manuallyClosedClips.has(details.dataset.key));
     if (details.open) state.openClips.add(details.dataset.key);
 
     details.addEventListener("toggle", () => syncOpenClipState(details, details.open));
@@ -1087,7 +1111,8 @@
       details?.classList.add("nl-current");
       state.currentClip = details;
     }
-    if (details && !details.open && !state.manuallyClosedClips.has(details.dataset.key)) {
+    if (details && !details.open && !playbackKeepsSidebarPosition() &&
+        !state.manuallyClosedClips.has(details.dataset.key)) {
       details.open = true;
       state.openClips.add(details.dataset.key);
     }
@@ -1098,6 +1123,7 @@
     clipVisibleItems, clipListedFrames, activeClipBaseContext, organizedNavigationIndex,
     organizedNavigationTarget, navigateOrganizedFrames, prepareLandmarkFrame, ensureOrganizedPlayback,
     runOrganizedPlayback, captureSidebarPosition, sidebarAnchorElement, restoreSidebarPosition,
+    capturePlaybackSidebarPosition, restorePlaybackSidebarPosition,
     revealCurrentFrame, ensureSidebarRendering, statusFilterRestricted, followFilteredFrame,
     renderStatusFilters, ensureStatusFilters, sidebarVisibleFrameSet, refreshClipSummary,
     refreshFrameStatus, refreshVisibleFrameStates, ensureStatusRendering, buildPartHeaderTools,

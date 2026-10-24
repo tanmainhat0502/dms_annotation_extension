@@ -1,6 +1,6 @@
 # NOTA Labeling Organizer — usage guide
 
-**Version 1.6.43 · English**
+**Version 1.6.44 · English**
 
 For installation screenshots and the complete shortcut tables, see the [GitHub README](https://github.com/tanmainhat0502/dms_annotation_extension#readme).
 
@@ -13,7 +13,7 @@ For installation screenshots and the complete shortcut tables, see the [GitHub R
 
 `A` / `D` navigate the visible list; `Shift+A` / `Shift+D` move 10 frames. `Space` plays that same list and stops at its end. Clearing the search with `Esc` or `×` restores all parts.
 
-Playback reuses the frame-list index and updates only the previous/current rows to reduce stuttering on large lists, including when images are cached. It keeps the sidebar viewport fixed while Space advances through long collected parts such as **Other**. Filter, label, session, and list changes refresh this index automatically.
+Playback reuses the frame-list index and updates only the previous/current rows to reduce stuttering on large lists, including when images are cached. It keeps the sidebar viewport fixed while Space advances through long collected parts such as **Other**, even if annotations finish loading or the list rebuilds between frames. Filter, label, session, and list changes refresh this index automatically.
 
 For bbox labels, the **BBox** field below part search filters frames by exact box count for the selected label. Enter `2,3,4` to show frames with exactly 2, 3, or 4 boxes; click **⚠ Warn** to scan the full session and show only frames with likely bbox errors (`dup`, `tiny`, `size`, `ratio`, `pos`, `jump`, `count`, `drift`, while preserving normal multi-box `body` frames); click **All** or clear the field to show every frame. Counts and warnings include saved edits and refresh after an edit or Ctrl+B. `A` / `D` and `Space` follow the filtered frames. The filter reads auto-labels only while a count or warning filter is active, at most two segments at a time, starting at the current frame. Frames whose auto-labels cannot be read stay visible and are reported as unknown. A progress line below the field shows counted, matched, and unknown listed frames while counts load.
 

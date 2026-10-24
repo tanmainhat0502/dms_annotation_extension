@@ -2,7 +2,7 @@
 
 A Chrome extension for faster annotation in **DMS Labeling**. Group frames by clip, edit labels with keyboard shortcuts, and repeat changes across multiple frames.
 
-**Version 1.6.43 · English**
+**Version 1.6.44 · English**
 
 [Download the latest release](https://github.com/tanmainhat0502/dms_annotation_extension/releases/latest) · [Detailed usage guide](extension/README.md) · [Changelog](CHANGELOG.md)
 
@@ -91,7 +91,7 @@ Reload your DMS tab and open **Labeling**. Search for a part, expand a clip such
 
 Compressed images and raw bbox responses are stored in the browser's local IndexedDB storage. They are decoded or parsed only when the viewer needs them, so loading two parts does not fill RAM with thousands of decoded images or bbox objects. `A` / `D` also prepare up to three nearby frames.
 
-`Space` playback reuses an index of the frame list for navigation and lookahead. Moving to another frame updates only the previous/current sidebar rows, instead of rescanning every row and refreshing every clip. During playback the current highlight advances without pulling the sidebar viewport downward through a long **Other** part. Changing the filter, label, session, or frame list rebuilds the index. This reduces interface work even when all images are already downloaded. Every navigation path, including fast `A` / `D`, sidebar clicks, timeline jumps, and `Space`, keeps the previous image visible until both the target image and its annotation data are ready. Rapid key presses discard stale results and reload face 7pt/eye 15pt state for the destination global frame, so cached images do not appear with missing boxes or stale landmark points.
+`Space` playback reuses an index of the frame list for navigation and lookahead. Moving to another frame updates only the previous/current sidebar rows, instead of rescanning every row and refreshing every clip. During playback the current highlight advances without pulling the sidebar viewport downward through a long **Other** part, including when annotations or the list update between frames. Changing the filter, label, session, or frame list rebuilds the index. This reduces interface work even when all images are already downloaded. Every navigation path, including fast `A` / `D`, sidebar clicks, timeline jumps, and `Space`, keeps the previous image visible until both the target image and its annotation data are ready. Rapid key presses discard stale results and reload face 7pt/eye 15pt state for the destination global frame, so cached images do not appear with missing boxes or stale landmark points.
 
 In Labeling, `Space` presents selected frames at an even **10 frames/second at 1×**, adjusted by the viewer's speed control. Timestamp gaps or repeats do not create pauses or bursts. Each image gets a browser rendering opportunity; after a slow decode or render, playback resumes its normal cadence without rushing through overdue frames. The next image is requested before warming up to three successors, using the same cache as `D`. A slow device or an uncached image can still delay playback.
 

@@ -7,6 +7,7 @@
     anyBulkDialogOpen, applyFilter, applyQuickOperationToItems, bboxDeleteTarget,
     bboxEditingAvailable, bboxFilterWants, bboxLabelingReady, buildMarkedBadge, buildToolbar,
     cancelBboxMode, cancelBulkDialog, cancelEyeBulkDialog, cancelManualMode,
+    capturePlaybackSidebarPosition,
     closeClipStatusMenu, commitBboxDeletePolygon, copyPreviousQuickBbox,
     copyQuickBboxToClipboard, deleteQuickBbox, ensureBboxEditing, ensureBulkDialog,
     ensureCurrentClipOpen, ensureEyeBulkDialog, ensureEyeGroupDragging, ensureEyePanelHint,
@@ -18,7 +19,8 @@
     onBboxEdgeDoubleClick, onBboxMouseDown, onBboxMouseMove, onBboxMouseUp, onBboxPointerDown,
     onManualMouseDown, onManualMouseMove, openBulkDialog, organizeGroup, pageLabelingReady,
     partStatusMatches, pasteQuickBboxFromClipboard, positionMarkedBadge, quickBboxReady,
-    refreshStatusControls, releaseBboxPointer, restoreNativeGroups, samAcceptAvailable,
+    refreshStatusControls, releaseBboxPointer, restoreNativeGroups,
+    restorePlaybackSidebarPosition, samAcceptAvailable,
     setBboxMode, setManualMode, state, statusFilterRestricted, toggleMarkedFrame,
     undoQuickBbox, undoSeatbelt, updateMarkedUI
   } = NL;
@@ -221,6 +223,7 @@
     ensureEditorAndCanvasHooks();
     if (!pageLabelingReady("seatbelt") && (state.manualMode || state.lastPatch)) cancelManualMode();
     if (state.bboxMode && !bboxLabelingReady()) cancelBboxMode();
+    const playbackPosition = capturePlaybackSidebarPosition();
     state.applying = true;
     try {
       for (const row of state.list.querySelectorAll(":scope > .grp")) organizeGroup(row);
@@ -230,6 +233,7 @@
       updateMarkedUI();
       state.sidebarScope = typeof S !== "undefined" ? { generation: S.gen, label: S.labelSel } : null;
     } finally {
+      restorePlaybackSidebarPosition(playbackPosition);
       // MutationObserver callbacks run after this function returns. Clear the
       // records produced by our own grouping/status UI to prevent a RAF loop.
       state.observer?.takeRecords();

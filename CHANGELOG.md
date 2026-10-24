@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.44 - 2026-10-24
+
+- Keep the sidebar at the user's scroll position for the entire `Space` playback session, including asynchronous annotation repaints, sidebar rebuilds, and clip grouping. The highlighted frame still advances; a deliberate `A` / `D` or frame click after pausing still reveals its destination.
+- Add a browser regression that reproduces the v1.6.43 jump from **Other** into the part below: an asynchronous repaint and list rebuild moved `scrollTop` from 24 to 2058. Verify it stays at 24 and `D` navigation still reveals the selected row afterward.
+
 ## 1.6.43 - 2026-10-24
 
 - Keep the sidebar viewport fixed during `Space` playback, including long **Other** parts, while still updating the current-frame highlight. Deliberate `A` / `D` and frame clicks continue to reveal their destination.
