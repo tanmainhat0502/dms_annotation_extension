@@ -1,6 +1,6 @@
 # NOTA Labeling Organizer — usage guide
 
-**Version 1.6.42 · English**
+**Version 1.6.43 · English**
 
 For installation screenshots and the complete shortcut tables, see the [GitHub README](https://github.com/tanmainhat0502/dms_annotation_extension#readme).
 
@@ -13,7 +13,7 @@ For installation screenshots and the complete shortcut tables, see the [GitHub R
 
 `A` / `D` navigate the visible list; `Shift+A` / `Shift+D` move 10 frames. `Space` plays that same list and stops at its end. Clearing the search with `Esc` or `×` restores all parts.
 
-Playback reuses the frame-list index and updates only the previous/current rows to reduce stuttering on large lists, including when images are cached. Filter, label, session, and list changes refresh this index automatically.
+Playback reuses the frame-list index and updates only the previous/current rows to reduce stuttering on large lists, including when images are cached. It keeps the sidebar viewport fixed while Space advances through long collected parts such as **Other**. Filter, label, session, and list changes refresh this index automatically.
 
 For bbox labels, the **BBox** field below part search filters frames by exact box count for the selected label. Enter `2,3,4` to show frames with exactly 2, 3, or 4 boxes; click **⚠ Warn** to scan the full session and show only frames with likely bbox errors (`dup`, `tiny`, `size`, `ratio`, `pos`, `jump`, `count`, `drift`, while preserving normal multi-box `body` frames); click **All** or clear the field to show every frame. Counts and warnings include saved edits and refresh after an edit or Ctrl+B. `A` / `D` and `Space` follow the filtered frames. The filter reads auto-labels only while a count or warning filter is active, at most two segments at a time, starting at the current frame. Frames whose auto-labels cannot be read stay visible and are reported as unknown. A progress line below the field shows counted, matched, and unknown listed frames while counts load.
 
@@ -45,7 +45,7 @@ When you move into the second part, or when all frames in the first part are hid
 
 Images and raw bbox responses are stored in local browser storage; background loading does not decode thousands of bitmaps or parse thousands of bbox objects into RAM. Normal viewing reads only what the current frame needs, and `A` / `D` prepare up to three nearby frames.
 
-In Labeling, `Space` plays the selected list at an even **10 frames/second at 1×**. The speed control still applies, including the viewer's frame stepping above 2×. Source timestamp gaps/repeats do not interrupt the cadence. Fast `A` / `D`, sidebar selection, timeline jumps, and `Space` retain the previous display until the target image and bbox data are both ready; stale rapid-navigation results are discarded. Slow decoding/rendering delays presentation instead of showing a frame without its boxes or triggering a burst of overdue frames. Pause/resume and changing labels or sessions discard stale results. Review modes keep their original player.
+In Labeling, `Space` plays the selected list at an even **10 frames/second at 1×**. The speed control still applies, including the viewer's frame stepping above 2×. Source timestamp gaps/repeats do not interrupt the cadence. The current-row highlight advances without scrolling the sidebar away from the user's current position. Fast `A` / `D`, sidebar selection, timeline jumps, and `Space` retain the previous display until the target image and annotation data are both ready; stale rapid-navigation results are discarded, and face 7pt/eye 15pt reload from the destination global frame. Slow decoding/rendering delays presentation instead of showing a frame without its annotations or triggering a burst of overdue frames. Pause/resume and changing labels or sessions discard stale results. Review modes keep their original player.
 
 The image background limit applies per tab and drops to one request while the viewer fetches frames or frame statuses are saving. Bbox loading uses at most two requests and also drops to one during foreground work. There is no fixed images-per-second limit. Speed and server load depend on the connection, server capacity, and number of users or tabs loading data.
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.43 - 2026-10-24
+
+- Keep the sidebar viewport fixed during `Space` playback, including long **Other** parts, while still updating the current-frame highlight. Deliberate `A` / `D` and frame clicks continue to reveal their destination.
+- Reload face 7pt and eye 15pt editor data by global frame before painting. This prevents collected sources with repeated segment/local-frame keys from reusing stale landmark state and losing face point 0 after rapid `D` navigation.
+- Treat missing auto-label responses as a retryable load failure instead of painting and pinning an empty bbox or landmark editor to the destination frame.
+- Add browser regressions for stable sidebar playback and rapid face 7pt navigation with repeated source keys.
+
 ## 1.6.42 - 2026-10-24
 
 - Keep the previous display visible during fast `A` / `D`, sidebar, timeline, and `Space` navigation until both the target image and its bbox data are ready. Rapid navigation now discards stale loads and paints only the latest requested frame, preventing cached images from appearing temporarily without boxes.

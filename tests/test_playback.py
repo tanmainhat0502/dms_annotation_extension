@@ -208,6 +208,28 @@ def test_cached_space(browser):
     print(f'PASS: cached Space playback stays evenly paced across timestamp gaps/repeats ({[round(t) for t in intervals]} ms); no additional image requests')
 
 
+def test_space_keeps_sidebar_viewport(browser):
+    page,errors,requests=open_page(browser,600)
+    page.evaluate('''async()=>{
+      await show(0);window.painted=[];window.pauseAt=100;S.speedI=6;
+      const pane=document.querySelector('#labPane');pane.scrollTop=24;
+      window.playbackSidebarStart={top:pane.scrollTop,left:pane.scrollLeft};
+    }''')
+    page.keyboard.press('Space')
+    page.wait_for_function('S.shownG===100 && !S.playing')
+    position=page.evaluate('''()=>{
+      const pane=document.querySelector('#labPane');
+      return {top:pane.scrollTop,left:pane.scrollLeft,current:document.querySelector('#labList li.cur')?.dataset.g};
+    }''')
+    start=page.evaluate('playbackSidebarStart')
+    assert abs(position['top']-start['top'])<=1,(start,position)
+    assert abs(position['left']-start['left'])<=1,(start,position)
+    assert position['current']=='100',position
+    assert not errors,errors
+    page.close()
+    print('PASS: Space advances the current row through Other without dragging the sidebar viewport downward')
+
+
 def test_cross_segment_annotations(browser):
     page,errors,requests=open_page(browser,16)
     page.evaluate('''async()=>{
@@ -289,6 +311,37 @@ def test_direct_navigation_waits_for_annotations(browser):
     assert not errors,errors
     page.close()
     print('PASS: D/click/show retain the previous image until the target bbox is ready; rapid navigation paints only the latest frame')
+
+
+def test_rapid_landmark_navigation_reloads_point_zero(browser):
+    page,errors,requests=open_page(browser,8)
+    page.evaluate('''async()=>{
+      pause();S.labelSel='face_lmk';S.g=S.shownG=0;
+      S.sess.segments=Array.from({length:S.G},()=>({name:'repeated-source-key',n:1,al:true}));
+      S.al=new Map();S.ledits={};window.loc=g=>[g,0];
+      const points=g=>Array.from({length:7},(_,k)=>k===0 && g===0?null:[g*10+k,g*10+k+.5]);
+      for(let g=0;g<S.G;g++)S.al.set(g,{frames:{'0':{facePoints:points(g)}}});
+      ED.key=null;ED.lab=null;ED.items=null;window.landmarkPaints=[];
+      const nativePaint=paint;
+      paint=function(){
+        const [si,i]=loc(S.shownG),key=`${S.sess.segments[si].name}:${i}`;
+        if(ED.key!==key || ED.lab!==S.labelSel){
+          const source=S.al.get(si).frames[String(i)].facePoints;
+          ED.items=[{pts:source.map(point=>point && point.slice())}];ED.key=key;ED.lab=S.labelSel;
+        }
+        landmarkPaints.push({g:S.shownG,point0:ED.items[0].pts[0] && ED.items[0].pts[0].slice()});
+        nativePaint();
+      };
+      await show(0);window.landmarkPaints=[];
+    }''')
+    page.keyboard.press('d');page.keyboard.press('d')
+    page.wait_for_function('S.shownG===2')
+    paints=page.evaluate('landmarkPaints')
+    assert paints[-1]=={'g':2,'point0':[20,20.5]},paints
+    assert all(item['point0']==[item['g']*10,item['g']*10+.5] for item in paints),paints
+    assert not errors,errors
+    page.close()
+    print('PASS: rapid D reloads face 7pt by global frame even when collected source keys repeat; point 0 is retained')
 
 
 def test_auto_load_preloads_bboxes(browser):
@@ -522,8 +575,10 @@ def main():
         try:
             test_large_list(browser)
             test_cached_space(browser)
+            test_space_keeps_sidebar_viewport(browser)
             test_cross_segment_annotations(browser)
             test_direct_navigation_waits_for_annotations(browser)
+            test_rapid_landmark_navigation_reloads_point_zero(browser)
             test_auto_load_preloads_bboxes(browser)
             test_playback_stall(browser)
             test_pending_playback(browser)

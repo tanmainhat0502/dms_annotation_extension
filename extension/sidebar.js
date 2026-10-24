@@ -200,6 +200,28 @@
     return true;
   }
 
+  function prepareLandmarkFrame(g) {
+    if (S.labelSel !== "face_lmk" && S.labelSel !== "eye_lmk") {
+      state.landmarkEditorScope = null;
+      return;
+    }
+    const previous = state.landmarkEditorScope;
+    if (previous?.session === S.sess && previous.generation === S.gen &&
+        previous.label === S.labelSel && previous.frame === g) return;
+    state.landmarkEditorScope = {
+      session: S.sess, generation: S.gen, label: S.labelSel, frame: g
+    };
+    // The native editor keys landmark data by segment name + local index. In
+    // collected/grouped parts those keys can repeat across source segments.
+    // Force a fresh read for each global frame so rapid navigation cannot
+    // reuse a partial point set (most visibly a missing face point 0).
+    if (typeof ED !== "undefined" && ED) ED.key = null;
+    if (typeof LM !== "undefined" && LM) {
+      LM.key = null;
+      LM.sig = null;
+    }
+  }
+
   function ensureOrganizedPlayback() {
     if (!state.annotationReadyShowInstalled && typeof show === "function" &&
         typeof getFrame === "function" && typeof drawBar === "function") {
@@ -228,9 +250,19 @@
         drawBar();
         const spinner = document.getElementById("spin");
         if (spinner) spinner.hidden = false;
+        let imageError = null, annotationError = null;
         try {
-          await Promise.all([getFrame(g), requestPlaybackAutoLabel(g)]);
+          await Promise.all([
+            Promise.resolve(getFrame(g)).catch((error) => { imageError = error; }),
+            requestPlaybackAutoLabel(g).catch((error) => { annotationError = error; })
+          ]);
           if (!stillCurrent()) return;
+          if (imageError) return nativeShow.call(this, g);
+          if (annotationError) {
+            notify("Unable to load annotations. Press A or D to retry.");
+            return;
+          }
+          prepareLandmarkFrame(g);
           return await nativeShow.call(this, g);
         } catch (_) {
           if (!stillCurrent()) return;
@@ -293,9 +325,19 @@
     const segment = playbackAutoLabelSegment(g);
     if (segment === null) return Promise.resolve(null);
     try {
-      return Promise.resolve(loadAutoLabel(segment)).catch(() => null);
-    } catch (_) {
-      return Promise.resolve(null);
+      return Promise.resolve(loadAutoLabel(segment)).then((data) => {
+        const expectsAnnotations = Boolean(S.sess?.segments?.[segment]?.al);
+        if (expectsAnnotations && (!data || typeof data.frames !== "object")) {
+          // Native ensureAL stores null after a failed request. Remove that
+          // sentinel so the next navigation can retry instead of pinning an
+          // empty landmark/bbox editor to the frame.
+          if (S.al?.get(segment) === null) S.al.delete(segment);
+          throw new Error("Annotation data is unavailable");
+        }
+        return data;
+      });
+    } catch (error) {
+      return Promise.reject(error);
     }
   }
 
@@ -388,7 +430,21 @@
         S.g = next;
         S.shownG = next;
         S.bmp = bitmap;
-        paint();
+        const pane = state.pane;
+        const panePosition = pane ? { top: pane.scrollTop, left: pane.scrollLeft } : null;
+        state.organizedPlaybackPainting = true;
+        try {
+          prepareLandmarkFrame(next);
+          paint();
+        } finally {
+          state.organizedPlaybackPainting = false;
+          // Playback still advances the current-row highlight, but it must not
+          // drag the user's sidebar viewport through a long Other part.
+          if (panePosition && pane === state.pane) {
+            pane.scrollTop = panePosition.top;
+            pane.scrollLeft = panePosition.left;
+          }
+        }
         drawBar();
       }
     } finally {
@@ -545,7 +601,7 @@
             navigation.current?.classList.remove("cur");
             current.classList.add("cur");
             navigation.current = current;
-            revealCurrentFrame(current);
+            if (!state.organizedPlaybackPainting) revealCurrentFrame(current);
           }
           if (typeof lsBoxRender === "function") lsBoxRender();
           if (typeof r2Render === "function") r2Render();
@@ -559,7 +615,7 @@
         // Repaints also call scrollIntoView. Preserve the user's viewport on
         // the same frame, while genuine navigation still reveals the new row.
         if (position) restoreSidebarPosition(position);
-        else revealCurrentFrame();
+        else if (!state.organizedPlaybackPainting) revealCurrentFrame();
       }
       return result;
     };
@@ -1040,7 +1096,7 @@
   Object.assign(NL, {
     clipKey, getClipNo, getMeta, framePartKey, frameClipKey, clipFrames, partFrames,
     clipVisibleItems, clipListedFrames, activeClipBaseContext, organizedNavigationIndex,
-    organizedNavigationTarget, navigateOrganizedFrames, ensureOrganizedPlayback,
+    organizedNavigationTarget, navigateOrganizedFrames, prepareLandmarkFrame, ensureOrganizedPlayback,
     runOrganizedPlayback, captureSidebarPosition, sidebarAnchorElement, restoreSidebarPosition,
     revealCurrentFrame, ensureSidebarRendering, statusFilterRestricted, followFilteredFrame,
     renderStatusFilters, ensureStatusFilters, sidebarVisibleFrameSet, refreshClipSummary,

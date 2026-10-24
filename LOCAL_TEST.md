@@ -1,10 +1,10 @@
-# Manual testing: 1.6.42
+# Manual testing: 1.6.43
 
 Use this checklist to verify cached playback, the timeline lock, bbox editing, sticky clip controls, and image preloading in your DMS environment.
 
 ## Install
 
-1. Extract `dist/NOTA_Labeling_Organizer_Extension_v1.6.42.zip`, or use this repository's `extension` folder.
+1. Extract `dist/NOTA_Labeling_Organizer_Extension_v1.6.43.zip`, or use this repository's `extension` folder.
 2. In `chrome://extensions`, disable the older Organizer version. Click **Load unpacked** and select the folder containing `manifest.json`.
 3. Reload the DMS tab. Open **Labeling**, choose a label, and open a frame.
 4. Find **auto_load_img** and **Stop** directly below the part search field.
@@ -30,8 +30,9 @@ Use this checklist to verify cached playback, the timeline lock, bbox editing, s
 - On each bbox label, press `C` in frame 2: all boxes should come from frame 1. Edit and save frame 3, then press C in frame 4: it should use the edited boxes. Leave frame 5 unchanged and press C in frame 6: it should use frame 5. Leave frame 7 empty and press C in frame 8: it should use frame 6.
 - Jump directly to a frame without viewing its predecessor; C must still find the nearest earlier frame with boxes. Check an explicitly deleted/empty predecessor and a Done predecessor hidden by status filters. The source should always be the same label and session. With no earlier nonempty source, current boxes must remain untouched.
 - After C, press `Z` to restore the target. `Shift+C` should copy then advance once. While source data loads, switch frame/label/session or edit the current box: the pending copy must not overwrite that new context or edit. Check that Ctrl+C/Ctrl+V still use the explicit clipboard selection.
-- Load a large part with **auto_load_img**, wait for **Ready**, then press `Space` at 1x. Check that frames advance in order and the sidebar follows without repeated long pauses. Press `Space` again to pause; edit a box and check that the sidebar does not jump during repaint.
-- In **Other**, wait until the toolbar says **BBoxes ready**, then play through frames collected from different source segments. Every displayed frame must already show its bbox; it must not require going back and waiting. Check that at most two background bbox-segment requests run together and that changing parts releases the old part's bbox cache.
+- Load a large part with **auto_load_img**, wait for **Ready**, then press `Space` at 1x. Check that frames advance in order, the current-row highlight updates, and the sidebar stays at its current scroll position without repeated long pauses. Press `Space` again to pause; edit a box and check that the sidebar does not jump during repaint.
+- In **Other**, wait until the toolbar says **BBoxes ready**, then play through frames collected from different source segments. Every displayed frame must already show its bbox or landmark points; it must not require going back and waiting. The sidebar must remain at the user's current scroll position while Space plays instead of jumping down to follow each frame. Check that at most two background bbox-segment requests run together and that changing parts releases the old part's bbox cache.
+- On **face 7pt**, enable the Vietnamese input method and press `D` twice quickly. The destination frame must reload its own seven points, including point 0. Repeat with **eye 15pt** and with collected frames whose source segments may share local frame keys.
 - Compare fast repeated `D` presses and `Space` on the same cached clip. The old frame should remain visible until both the latest target image and its bbox are ready; intermediate targets may be skipped, but the latest target must never appear without boxes. Space should present roughly 10 frames/second at 1×, even where source timestamps repeat or have gaps. Try 0.5×, 2× and 3×, then change speed while playing. After a temporary rendering/decode delay, frames should resume evenly instead of rushing through several at once.
 - Pause while an image is loading, select another frame, and resume. The old image must not replace the new frame or stop the new playback run. Change label/session while loading and check the same. An image-load failure should pause with a retry message; Space should retry that frame. Review modes should retain their original timing.
 - During playback, search for a different part, clear the search, change labels, and switch sessions. Navigation must use the new list and stop at its last frame. Mark Done with Show done unchecked, then reopen a frame: the displayed rows and status must stay correct.
