@@ -4,7 +4,7 @@
   const NL = window.__notaOrganizerV1 = window.__notaOrganizerV1 || {};
   const {
     FRAME_STATES, STATUS_FILTER_KEY, currentLabelScope, frameState, insertBeforeFrameName,
-    notify, pageLabelingReady, partStatusMatches, sessionLabelFrames, state, statusIcon,
+    loadAutoLabel, notify, pageLabelingReady, partStatusMatches, sessionLabelFrames, state, statusIcon,
     statusName
   } = NL;
   const cancelBboxLoads = (...args) => NL.cancelBboxLoads(...args);
@@ -226,6 +226,64 @@
     state.organizedPlaybackLoopInstalled = true;
   }
 
+  function playbackAutoLabelSegment(g) {
+    if (typeof loc !== "function" || !S.al || typeof S.al.has !== "function") return null;
+    try {
+      const segment = Number(loc(g)?.[0]);
+      return Number.isInteger(segment) && segment >= 0 && segment < (S.sess?.segments?.length || 0)
+        ? segment
+        : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function playbackFrameHasSavedLabel(g) {
+    if (typeof rvKey !== "function") return false;
+    try {
+      const edits = S.ledits?.[rvKey(g)];
+      return Boolean(edits && Object.prototype.hasOwnProperty.call(edits, S.labelSel));
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function requestPlaybackAutoLabel(g) {
+    if (playbackFrameHasSavedLabel(g)) return Promise.resolve(null);
+    const segment = playbackAutoLabelSegment(g);
+    if (segment === null) return Promise.resolve(null);
+    try {
+      return Promise.resolve(loadAutoLabel(segment)).catch(() => null);
+    } catch (_) {
+      return Promise.resolve(null);
+    }
+  }
+
+  function pendingAutoLabelLoads() {
+    if (!S.al || typeof S.al.values !== "function") return 0;
+    let pending = 0;
+    for (const value of S.al.values()) {
+      if (value && typeof value.then === "function") pending += 1;
+    }
+    return pending;
+  }
+
+  function warmPlaybackAutoLabels(from, step, count = 12) {
+    if (!S.al || typeof S.al.has !== "function") return;
+    let pending = pendingAutoLabelLoads();
+    let g = from;
+    for (let offset = 0; offset < count && pending < 2; offset += 1) {
+      const next = playNext(g, step);
+      if (next === g) break;
+      g = next;
+      if (playbackFrameHasSavedLabel(g)) continue;
+      const segment = playbackAutoLabelSegment(g);
+      if (segment === null || S.al.has(segment)) continue;
+      pending += 1;
+      loadAutoLabel(segment).catch(() => null);
+    }
+  }
+
   async function runOrganizedPlayback(token) {
     const session = S.sess, generation = S.gen, label = S.labelSel, width = S.w, quality = S.q;
     const alive = () => S.playing && S.tok === token;
@@ -245,10 +303,15 @@
           organizedNavigationIndex() === navigation;
         let bitmap;
         try {
+          // Load the image and its segment annotations together. Presenting a
+          // cached image before auto-labels arrive makes the native editor pin
+          // an empty bbox list until the user leaves and revisits the frame.
+          const autoLabel = requestPlaybackAutoLabel(next);
+          const requested = getFrame(next);
+          warmPlaybackAutoLabels(next, step);
           // Request the displayed frame first, before warming three successors.
           // Reuse the viewer cache / two-part preloader; do not fill all six
           // native request slots with later images ahead of the needed image.
-          const requested = getFrame(next);
           for (let offset = 0, g = next; offset < 3 && S.inflight.size < 4; offset++) {
             const following = playNext(g, step);
             if (following === g) break;
@@ -256,6 +319,7 @@
             if (!S.frames.has(fkey(g))) getFrame(g).catch(() => {});
           }
           bitmap = await requested;
+          await autoLabel;
         } catch (_) {
           if (stillCurrent()) {
             notify("Unable to load the next image. Press Space to retry.");

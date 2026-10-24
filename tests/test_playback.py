@@ -203,6 +203,47 @@ def test_cached_space(browser):
     print(f'PASS: cached Space playback stays evenly paced across timestamp gaps/repeats ({[round(t) for t in intervals]} ms); no additional image requests')
 
 
+def test_cross_segment_annotations(browser):
+    page,errors,requests=open_page(browser,16)
+    page.evaluate('''async()=>{
+      pause();
+      S.sess.segments=Array.from({length:S.G},(_,i)=>({name:`segment-${i}`,n:1,al:true}));
+      S.al=new Map();S.ledits={};
+      window.loc=g=>[g,0];window.segPfx=si=>`test/segment-${si}/`;
+      const annotation=si=>({frames:{'0':{body:[{box:[si,si,si+10,si+10]}]}}});
+      S.al.set(0,annotation(0));
+      window.autoLabelCalls=[];window.autoLabelActive=0;window.autoLabelPeak=0;
+      window.ensureAL=function(si){
+        if(S.al.has(si))return S.al.get(si);
+        autoLabelCalls.push(si);autoLabelActive++;autoLabelPeak=Math.max(autoLabelPeak,autoLabelActive);
+        const pending=new Promise(resolve=>setTimeout(()=>{
+          const data=annotation(si);S.al.set(si,data);autoLabelActive--;resolve(data);
+        },140));
+        S.al.set(si,pending);return pending;
+      };
+      await Promise.all(Array.from({length:S.G},(_,g)=>getFrame(g)));
+      await show(0);window.painted=[];window.annotationPaints=[];window.pauseAt=6;
+      const nativePaint=paint;
+      paint=function(){
+        const [si,i]=loc(S.shownG),data=S.al.get(si),frame=data && typeof data.then!=='function'
+          ? data.frames[String(i)] : null;
+        annotationPaints.push({g:S.shownG,ready:!!frame,boxes:frame?.body?.length||0});
+        nativePaint();
+      };
+    }''')
+    before=len(requests)
+    page.keyboard.press('Space')
+    page.wait_for_function('S.shownG===6 && !S.playing')
+    painted=page.evaluate('annotationPaints')
+    assert [item['g'] for item in painted]==list(range(1,7)),painted
+    assert all(item['ready'] and item['boxes']==1 for item in painted),painted
+    assert page.evaluate('autoLabelPeak')<=2,page.evaluate('autoLabelPeak')
+    assert len(requests)==before,(before,len(requests))
+    assert not errors,errors
+    page.close()
+    print('PASS: cached cross-segment Space playback waits for each bbox payload and uses at most two auto-label lookahead requests')
+
+
 def test_playback_stall(browser):
     page,errors,requests=open_page(browser,64)
     page.evaluate('''async()=>{
@@ -384,6 +425,7 @@ def main():
         try:
             test_large_list(browser)
             test_cached_space(browser)
+            test_cross_segment_annotations(browser)
             test_playback_stall(browser)
             test_pending_playback(browser)
             test_playback_speed_and_filters(browser)

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.40 - 2026-10-24
+
+- Fix temporarily missing bbox annotations during fast `Space` playback in parts such as **Other** that collect frames from different source segments. Load the target image and its auto-label data concurrently, prepare upcoming auto-label segments with at most two lookahead requests, and display a frame only after its annotations are ready. Saved edits continue without waiting for auto-label data.
+- Add a multi-segment cached-playback regression to ensure every painted frame already has its annotation data and auto-label lookahead stays bounded.
+
 ## 1.6.39 - 2026-10-24
 
 - Enable the complete bbox shortcut workflow for all 13 bbox labels, including single-box labels such as head, mouth, nose, face, and face mask, plus object labels. `X` / `Shift+X`, `1` / `2`, `C` / `Shift+C`, `Ctrl+C` / `Ctrl+V`, `V`, `Ctrl+B`, and `Z` now use the same behavior previously limited to body, hand, and eye.
