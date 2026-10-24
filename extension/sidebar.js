@@ -907,7 +907,7 @@
       const current = value === "done" ? allDone : value === "wip" ? allWip : allTodo;
       button.classList.toggle("current", current);
       const count = states.filter((item) => item === value).length;
-      button.disabled = !count || state.operationBusy;
+      button.disabled = !count || state.operationBusy || state.statusOperationBusy;
       button.title = `${count} ${statusName(value)} frames · Choose a new status`;
       button.setAttribute("aria-label", `${statusName(value)}: change ${count} frames in this clip`);
       button.setAttribute("aria-pressed", String(current));
@@ -923,7 +923,7 @@
       const count = frames.reduce((total, g) => total + (frameState(g) === "done" ? 1 : 0), 0);
       input.checked = frames.length > 0 && count === frames.length;
       input.indeterminate = count > 0 && count < frames.length;
-      input.disabled = !frames.length || state.operationBusy;
+      input.disabled = !frames.length || state.operationBusy || state.statusOperationBusy;
       input.title = `${count}/${frames.length} Done · Check: all Done · Uncheck: all In progress`;
       const operation = state.partStatusOperation;
       const busy = partStatusMatches(operation) && operation.name === row.dataset.partName;
@@ -938,7 +938,7 @@
   }
 
   function refreshStatusControls() {
-    if (state.doneAllButton) state.doneAllButton.disabled = !pageLabelingReady() || state.operationBusy;
+    if (state.doneAllButton) state.doneAllButton.disabled = !pageLabelingReady() || state.operationBusy || state.statusOperationBusy;
     refreshPartStatusControls();
     for (const details of state.list?.querySelectorAll(".nl-clip") || []) refreshClipStatusControls(details);
   }

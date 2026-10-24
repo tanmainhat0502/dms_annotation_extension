@@ -2,7 +2,7 @@
 
 A Chrome extension for faster annotation in **DMS Labeling**. Group frames by clip, edit labels with keyboard shortcuts, and repeat changes across multiple frames.
 
-**Version 1.6.40 · English**
+**Version 1.6.41 · English**
 
 [Download the latest release](https://github.com/tanmainhat0502/dms_annotation_extension/releases/latest) · [Detailed usage guide](extension/README.md) · [Changelog](CHANGELOG.md)
 
@@ -75,7 +75,7 @@ Reload your DMS tab and open **Labeling**. Search for a part, expand a clip such
 
 **Box matching uses geometry**, not visual object recognition. Boxes that overlap by at least 90% IoU are highlighted red. The image also shows a bbox count.
 
-**Done all** affects the current label across the entire part, including collapsed clips and frames hidden by status filters. It shows save progress and sends at most four status requests at once. If a save fails, completed saves remain and the checkbox reflects the actual result. Enable **Show done** to see completed parts and untick one to reopen it.
+**Done all** affects the current label across the entire part, including collapsed clips and frames hidden by status filters. It shows save progress and sends at most four status requests at once. While those statuses save, bbox editing such as `R` and `C` stays available and **auto_load_img** continues with one background request. The currently open frame is saved last. If a save fails, completed saves remain and the checkbox reflects the actual result. Enable **Show done** to see completed parts and untick one to reopen it.
 
 **Clip status example:** **Done → In progress** reopens only Done frames in that clip; existing Not checked and In progress frames stay as they are. The menu shows the source-frame count. No frames change until you choose a destination. **In progress** and **Not checked** work the same way. A source button is disabled when the clip has no frames in that status. Changes affect only the active label and preserve annotations.
 
@@ -95,7 +95,7 @@ Compressed images are stored in the browser's local IndexedDB storage, not kept 
 
 In Labeling, `Space` presents selected frames at an even **10 frames/second at 1×**, adjusted by the viewer's speed control. Timestamp gaps or repeats do not create pauses or bursts. Each image gets a browser rendering opportunity; after a slow decode or render, playback resumes its normal cadence without rushing through overdue frames. The next image is requested before warming up to three successors, using the same cache as `D`. A slow device or an uncached image can still delay playback.
 
-The loader allows up to four background requests per tab over HTTP/1.1, leaving two of Chrome's six connections per host for the viewer and saves, or six over HTTP/2/HTTP/3. There is no fixed images-per-second limit; actual speed depends on the server and connection. While the viewer is fetching or decoding frames it keeps only one background request; while frame status is saving it starts none. Requests already in progress may continue. Multiple users or tabs add to the server's load.
+The loader allows up to four background requests per tab over HTTP/1.1, leaving two of Chrome's six connections per host for the viewer and saves, or six over HTTP/2/HTTP/3. There is no fixed images-per-second limit; actual speed depends on the server and connection. While the viewer is fetching or decoding frames, or while frame statuses are saving, it keeps one background request. Multiple users or tabs add to the server's load.
 
 The counter covers all frames in the two-part window that match the active status filters (**Show done**, **Show in progress**, **Show not checked**) and the **BBox** filter in the sidebar. Frames whose BBox counts are still loading wait (`awaiting BBox counts`). The window updates when you move to the next part or when status/BBox filters change; the final matching part runs alone. Changing the filter keeps already downloaded images. Stop first if you only want to inspect another part temporarily.
 

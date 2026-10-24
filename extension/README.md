@@ -1,6 +1,6 @@
 # NOTA Labeling Organizer — usage guide
 
-**Version 1.6.40 · English**
+**Version 1.6.41 · English**
 
 For installation screenshots and the complete shortcut tables, see the [GitHub README](https://github.com/tanmainhat0502/dms_annotation_extension#readme).
 
@@ -29,7 +29,7 @@ Status changes affect only the active label, preserve annotations, and send up t
 
 To set an entire part's status, use **Done all** below its frame count in the left column. Tick it to mark all frames **Done**; untick it to make all frames **In progress**. A dash means only some frames are Done. The count and checkbox stay visible while scrolling within that part.
 
-This action covers the current label's whole part, including closed clips and frames hidden by status filters. It pauses playback, shows saved/total progress, and saves up to four frames at a time. Other parts, labels, and annotations stay unchanged. A failed request stops further saves; successful saves remain. Switching session, label, or mode stops queued requests. Enable **Show done** to see completed parts and reopen them with the checkbox.
+This action covers the current label's whole part, including closed clips and frames hidden by status filters. It pauses playback, shows saved/total progress, and saves up to four frames at a time. BBox editing remains available, so `R` and `C` work immediately, and **auto_load_img** continues with one background request; the open frame's status is saved last. Other parts, labels, and annotations stay unchanged. A failed request stops further saves; successful saves remain. Switching session, label, or mode stops queued requests. Enable **Show done** to see completed parts and reopen them with the checkbox.
 
 While you scroll through an expanded clip, its header stays below the search/image-loading toolbar. You can collapse the clip or use its status buttons without scrolling back to the beginning. The next clip's header takes its place as you scroll into that clip.
 
@@ -47,7 +47,7 @@ Images are stored compressed in local browser storage; background loading does n
 
 In Labeling, `Space` plays the selected list at an even **10 frames/second at 1×**. The speed control still applies, including the viewer's frame stepping above 2×. Source timestamp gaps/repeats do not interrupt the cadence. The next image is requested first, with up to three following images prepared in advance and at most four outstanding viewer image loads started by this loop. Slow decoding/rendering delays playback instead of triggering a burst of overdue frames. Pause/resume and changing labels or sessions discard stale playback results. Review modes keep their original player.
 
-The background limit applies per tab and drops to one request while the viewer fetches frames (none while a status saves); there is no fixed images-per-second limit. Speed and server load depend on the connection, server capacity, and number of users or tabs loading images.
+The background limit applies per tab and drops to one request while the viewer fetches frames or frame statuses are saving; there is no fixed images-per-second limit. Speed and server load depend on the connection, server capacity, and number of users or tabs loading images.
 
 The pair includes every frame in those two parts that matches the active status filters (**Show done**, **Show in progress**, **Show not checked**) and the **BBox** filter. With a **BBox** filter, frames whose counts are still loading wait until they are known. Changing status or BBox filters keeps already downloaded images and updates the two-part window automatically. Changing session, label, image size/quality, leaving Labeling, or reloading the tab clears the preloader's cache. No annotation data is changed by preloading.
 

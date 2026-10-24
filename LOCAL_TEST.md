@@ -1,10 +1,10 @@
-# Manual testing: 1.6.40
+# Manual testing: 1.6.41
 
 Use this checklist to verify cached playback, the timeline lock, bbox editing, sticky clip controls, and image preloading in your DMS environment.
 
 ## Install
 
-1. Extract `dist/NOTA_Labeling_Organizer_Extension_v1.6.40.zip`, or use this repository's `extension` folder.
+1. Extract `dist/NOTA_Labeling_Organizer_Extension_v1.6.41.zip`, or use this repository's `extension` folder.
 2. In `chrome://extensions`, disable the older Organizer version. Click **Load unpacked** and select the folder containing `manifest.json`.
 3. Reload the DMS tab. Open **Labeling**, choose a label, and open a frame.
 4. Find **auto_load_img** and **Stop** directly below the part search field.
@@ -22,6 +22,7 @@ Use this checklist to verify cached playback, the timeline lock, bbox editing, s
 - Test a fully Done clip: **Done** must be enabled so it can be reopened; the other source buttons must be disabled. Try keyboard Enter/Space/arrows/Esc, clicking outside, and scrolling with a menu open. The menu must not toggle the clip or trigger playback. Repeating a partially failed transition should save only remaining source frames.
 - Find **Done all** below a part's frame count in the left column. Scroll up/down inside a long part and resize the window: the checkbox and count should remain visible. Move into another part and verify its control takes over.
 - Tick Done all on a part you intend to complete. The count shows save progress, then all its clips/frames become Done. Untick it: all frames become In progress. Other parts, labels, and annotation boxes must stay unchanged. Check collapsed clips, a partially Done part (dash), and keyboard Space on the focused checkbox.
+- While a large Done all save is still counting upward, press `R` on a selected bbox and `C` on another frame. Both edits must happen immediately. Keep **auto_load_img** running and verify its loaded count also continues increasing, at a reduced single-request background rate.
 - With **Show done** unchecked, the action must still cover the complete current-label part. Completed parts disappear; check **Show done** to see and untick the part again. If a request fails, the checkbox must reflect only successful saves and show an error; retry Done to save the remaining frames. Switching label/session during saving must stop new queued requests.
 - With auto_load_img running and **Show done** unchecked, Done all must advance its two-part cache only after the whole part's Done saves succeed (with **Show done** checked, the Done part remains in the sidebar and stays cached until you move to the next part or hide Done frames). Test that opening/closing clips and scrolling during saves keep the control accessible.
 - Place a hand box against the bottom image edge. Drag its bottom-right handle horizontally while moving slightly in and out of the black margin: the width should keep following the pointer without freezing or jumping on re-entry. Release outside: the saved bottom edge should be clipped to the image.

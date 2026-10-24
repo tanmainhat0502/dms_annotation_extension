@@ -256,6 +256,9 @@
         indexWanted(slot);
         slots.push(slot);
       }
+      // Commit filter changes together with the cache-window transition. This
+      // keeps the displayed total stable until released owners are deleted.
+      syncFilter();
       slots.sort((a, b) => parts.indexOf(a.part) - parts.indexOf(b.part));
       if (!slots.length) { running = false; message = "All remaining parts are Done."; }
     } catch (error) { storageFailed(error); }
@@ -336,13 +339,23 @@
     if (running) timer = setTimeout(pump, delay);
   }
 
+  function statusWriteStarted() {
+    statusWrites++;
+    schedule();
+  }
+
+  function statusWriteFinished() {
+    statusWrites = Math.max(0, statusWrites - 1);
+    if (statusWrites) schedule();
+    else setTimeout(pulse, 0);
+  }
+
   function pump() {
     if (!running || changing || !matchesScope()) return;
-    // Status saves get the network to themselves. While DMS fetches or decodes
-    // frames, keep one background request so loading still progresses.
+    // Keep one background request while DMS is saving statuses or fetching
+    // foreground frames, so Done all cannot freeze the preload progress.
     const yielding = statusWrites > 0 || S.inflight?.size > 0;
-    const limit = statusWrites ? 0 : yielding ? 1 : PARALLEL;
-    syncFilter();
+    const limit = yielding ? 1 : PARALLEL;
     let active = [...pending.values()].filter((request) => !request.foreground && !request.controller.signal.aborted).length;
     for (const slot of slots) {
       while (slot.cursor < slot.entries.length && active < limit) {
@@ -375,7 +388,6 @@
 
   function render() {
     if (!panel) return;
-    syncFilter();
     const total = slots.reduce((n, slot) => n + slot.wanted.size + slot.waiting, 0);
     const loaded = slots.reduce((n, slot) => n + countWanted(slot, slot.cached), 0);
     const failed = slots.reduce((n, slot) => n + countWanted(slot, slot.failed), 0);
@@ -455,9 +467,9 @@
     if (typeof fsSet === "function" && fsSet !== statusHook) {
       const nativeSet = fsSet;
       statusHook = async function (...args) {
-        statusWrites++;
+        statusWriteStarted();
         try { return await nativeSet.apply(this, args); }
-        finally { statusWrites--; }
+        finally { statusWriteFinished(); }
       };
       fsSet = statusHook;
     }
@@ -490,8 +502,8 @@
     catch (_) { return rawFetch(input, init); }
     const method = (init.method || (typeof input !== "string" && input.method) || "GET").toUpperCase();
     if (url.origin === location.origin && url.pathname === "/api/frame_status" && method !== "GET") {
-      statusWrites++;
-      return rawFetch(input, init).finally(() => { statusWrites--; });
+      statusWriteStarted();
+      return rawFetch(input, init).finally(statusWriteFinished);
     }
     if (url.origin !== location.origin || url.pathname !== "/api/frame" || method !== "GET" ||
         typeof input !== "string" || init.signal || !matchesScope()) return rawFetch(input, init);

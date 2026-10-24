@@ -327,10 +327,10 @@
 
   async function setClipSourceState(details, source, value, sourceButton) {
     const operation = state.clipScopes.get(details);
-    if (!partStatusMatches(operation) || state.operationBusy || !details.isConnected ||
+    if (!partStatusMatches(operation) || state.operationBusy || state.statusOperationBusy || !details.isConnected ||
         source === value || !FRAME_STATES.includes(source) || !FRAME_STATES.includes(value)) return;
     if (state.bboxActive && state.bboxRefreshTimer) applyFilter();
-    const targets = clipFrames(details).filter((g) => Number.isInteger(g) && frameState(g) === source);
+    const targets = currentFrameLast(clipFrames(details).filter((g) => Number.isInteger(g) && frameState(g) === source));
     if (bboxCountsPendingFor(targets)) {
       notify("Wait for BBox counts to finish loading before changing clip status");
       refreshClipStatusControls(details);
@@ -341,7 +341,7 @@
       refreshClipStatusControls(details);
       return;
     }
-    state.operationBusy = true;
+    state.statusOperationBusy = true;
     refreshStatusControls();
     const control = sourceButton.closest(".nl-clip-status-actions");
     control.dataset.busy = "true";
@@ -372,7 +372,7 @@
         else notify(`${action}: changed ${saved} frames in this clip`);
       }
     } finally {
-      state.operationBusy = false;
+      state.statusOperationBusy = false;
       delete control.dataset.busy;
       control.removeAttribute("aria-busy");
       if (sourceButton.isConnected) sourceButton.textContent = originalText;
@@ -382,13 +382,13 @@
   }
 
   async function setWholePartState(row, value) {
-    if (!partStatusMatches(state.partScopes.get(row)) || state.operationBusy || !row.isConnected) {
+    if (!partStatusMatches(state.partScopes.get(row)) || state.operationBusy || state.statusOperationBusy || !row.isConnected) {
       refreshPartStatusControls();
       return;
     }
     if (state.bboxActive && state.bboxRefreshTimer) applyFilter();
     state.partIndex = null;
-    const targets = partFrames(row).filter((g) => frameState(g) !== value);
+    const targets = currentFrameLast(partFrames(row).filter((g) => frameState(g) !== value));
     if (!targets.length) { refreshPartStatusControls(); return; }
     if (bboxCountsPendingFor(targets)) {
       notify("Wait for BBox counts to finish loading before changing part status");
@@ -399,7 +399,7 @@
       ...currentLabelScope(), name: row.dataset.partName,
       completed: 0, total: targets.length
     };
-    state.operationBusy = true;
+    state.statusOperationBusy = true;
     state.partStatusOperation = operation;
     refreshStatusControls();
     try {
@@ -427,7 +427,7 @@
       }
     } finally {
       state.partStatusOperation = null;
-      state.operationBusy = false;
+      state.statusOperationBusy = false;
       refreshStatusControls();
     }
   }
@@ -464,11 +464,19 @@
     return { targets: [...targets], unknown, loading };
   }
 
+  function currentFrameLast(frames) {
+    const current = Number(S.shownG);
+    if (!Number.isInteger(current) || !frames.includes(current)) return frames;
+    return [...frames.filter((g) => g !== current), current];
+  }
+
   async function doneAllSidebarFrames() {
-    if (!pageLabelingReady() || state.operationBusy) return;
+    if (!pageLabelingReady() || state.operationBusy || state.statusOperationBusy) return;
     applyFilter();
     // Wait only for listed frames; segments read for auto_load_img elsewhere do not block.
-    const { targets, unknown, loading } = sidebarUnfinishedFrames();
+    const listed = sidebarUnfinishedFrames();
+    const targets = currentFrameLast(listed.targets);
+    const { unknown, loading } = listed;
     if (loading) {
       notify("Wait for BBox counts to finish loading before using Done all");
       return;
@@ -480,9 +488,9 @@
     const operation = currentLabelScope();
     const skipped = unknown ? ` ${unknown} frames with unknown BBox counts will be skipped.` : "";
     if (!window.confirm(`Mark ${targets.length} unfinished frames in the sidebar Done for ${operation.label}?${skipped}`)) return;
-    if (state.operationBusy || !partStatusMatches(operation)) return;
+    if (state.operationBusy || state.statusOperationBusy || !partStatusMatches(operation)) return;
     const button = state.doneAllButton;
-    state.operationBusy = true;
+    state.statusOperationBusy = true;
     button.disabled = true;
     button.textContent = `0/${targets.length}`;
     refreshStatusControls();
@@ -499,7 +507,7 @@
           : `Done all: ${targets.length} frames set to Done`);
       }
     } finally {
-      state.operationBusy = false;
+      state.statusOperationBusy = false;
       button.textContent = "Done all";
       refreshStatusControls();
       applyFilter();
@@ -774,7 +782,7 @@
       state.bboxWarnButton.disabled = !supported;
       state.bboxWarnButton.setAttribute("aria-pressed", String(warnActive));
     }
-    state.doneAllButton.disabled = !pageLabelingReady() || state.operationBusy;
+    state.doneAllButton.disabled = !pageLabelingReady() || state.operationBusy || state.statusOperationBusy;
     state.bboxAllButton.setAttribute("aria-pressed", String(!state.bboxFilter.length && !warnActive));
     const load = state.bboxLoad;
     const rawPending = load ? load.queue.length + load.running : 0;

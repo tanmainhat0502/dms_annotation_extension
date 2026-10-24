@@ -6,7 +6,7 @@
   const bboxCountForFrame = (...args) => NL.bboxCountForFrame(...args);
   const scheduleBboxFilterRefresh = (...args) => NL.scheduleBboxFilterRefresh(...args);
 
-  const VERSION = "1.6.40";
+  const VERSION = "1.6.41";
 
   const ROOT_ID = "nota-labeling-organizer-v1";
 
@@ -108,6 +108,7 @@
     openClips: new Set(),
     manuallyClosedClips: new Set(),
     operationBusy: false,
+    statusOperationBusy: false,
     bulkDialog: null,
     bulkContext: null,
     bulkMode: null,

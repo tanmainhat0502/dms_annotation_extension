@@ -23,6 +23,9 @@ class Server:
         self.fail = set()
         self.active = self.peak = 0
         self.image_calls = []
+        self.image_active = self.image_peak = 0
+        self.image_during_status = 0
+        self.image_delay = 0
 
     async def route(self, route):
         if route.request.url.endswith('/api/frame_status'):
@@ -42,7 +45,16 @@ class Server:
         elif '/api/frame?' in route.request.url:
             from urllib.parse import urlparse, parse_qs
             self.image_calls.append(int(parse_qs(urlparse(route.request.url).query)['i'][0]))
-            await route.fulfill(body=(ROOT/'extension/icons/icon16.png').read_bytes(), content_type='image/png')
+            if self.active:
+                self.image_during_status += 1
+            self.image_active += 1
+            self.image_peak = max(self.image_peak, self.image_active)
+            try:
+                if self.image_delay:
+                    await asyncio.sleep(self.image_delay)
+                await route.fulfill(body=(ROOT/'extension/icons/icon16.png').read_bytes(), content_type='image/png')
+            finally:
+                self.image_active -= 1
         elif route.request.url == 'https://ntt.dev.nota.ai/':
             await route.fulfill(body=HTML, content_type='text/html')
         else:
@@ -228,12 +240,81 @@ async def test_preloader_transition(browser):
     print('PASS: preloader retains Done parts visible in sidebar and advances when hidden from sidebar')
 
 
+async def test_editing_and_preload_continue_during_done_all(browser):
+    page, server, errors = await setup(browser)
+    await page.add_script_tag(content=(ROOT/'extension/preload.js').read_text(encoding='utf-8'))
+    await page.wait_for_selector('#start_auto_load')
+    server.image_delay = .05
+    await page.evaluate("""()=>{
+      S.fstat[rvKey(228)]={body:{s:'wip'}};
+      S.ledits[rvKey(227)]={body:[{box:[10,10,20,20]},{box:[30,10,40,20]}]};
+      Object.assign(ED,{key:rvKey(228),lab:'body',items:[{box:[1,1,5,5]},{box:[6,1,10,5]}],
+        sel:0,selSet:new Set([0]),hover:null,drag:null,marq:null,poly:[]});
+      window.editorSaves=0;
+      window.edActive=()=>true;
+      window.edSelected=()=>ED.selSet.size?[...ED.selSet]:ED.sel>=0?[ED.sel]:[];
+      window.edClearSel=()=>{ED.sel=-1;ED.selSet.clear()};
+      window.edSave=()=>{window.editorSaves++};
+      window.edRepaint=()=>{};
+      document.addEventListener('keydown',event=>{
+        if(event.code!=='Delete'||event.defaultPrevented)return;
+        const selected=edSelected().sort((a,b)=>b-a);
+        for(const index of selected)ED.items.splice(index,1);
+        edClearSel();edSave();edRepaint();
+      },true);
+    }""")
+    await page.locator('#start_auto_load').click()
+    for _ in range(100):
+        if server.image_calls:
+            break
+        await asyncio.sleep(.01)
+    assert server.image_calls, 'Preloader did not start'
+
+    server.gate.clear()
+    await click_without_scrolling(page, CHECK)
+    await page.locator(CHECK).evaluate('el=>el.blur()')
+    for _ in range(100):
+        if server.active == 4:
+            break
+        await asyncio.sleep(.01)
+    assert server.active == 4, f'Expected four concurrent status saves, got {server.active}'
+    assert await page.evaluate("""()=>{
+      const state=window.__notaOrganizerV1.state;
+      return !state.operationBusy && state.statusOperationBusy;
+    }"""), 'Status saves must not take the annotation editing lock'
+
+    for _ in range(150):
+        if server.image_during_status:
+            break
+        await asyncio.sleep(.01)
+    assert server.image_during_status, 'Preloading stopped while status saves were active'
+    assert server.image_peak <= 4, server.image_peak
+
+    await page.keyboard.press('r')
+    assert await page.evaluate('ED.items.length===1 && window.editorSaves===1'), 'R must delete immediately during Done all'
+    await page.keyboard.press('c')
+    await page.wait_for_function('!window.__notaOrganizerV1.state.bboxCopyRequest')
+    assert await page.evaluate("""()=>JSON.stringify(ED.items.map(item=>item.box))===
+      JSON.stringify([[10,10,20,20],[30,10,40,20]]) && window.editorSaves===2"""), \
+      'C must copy the nearest previous bbox immediately during Done all'
+    assert 228 not in [post['i'] for post in server.posts], 'Save the actively edited frame last'
+
+    server.gate.set()
+    await finished(page)
+    assert 228 in [post['i'] for post in server.posts]
+    assert await page.evaluate('!window.__notaOrganizerV1.state.statusOperationBusy')
+    assert not errors, errors
+    await page.close()
+    print('PASS: R/C editing and one bounded image preload continue while Done all saves statuses')
+
+
 async def main():
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=True)
         await test_done_reopen_and_sticky(browser)
         await test_hidden_and_failed(browser)
         await test_scope_changes(browser)
+        await test_editing_and_preload_continue_during_done_all(browser)
         await test_preloader_transition(browser)
         await browser.close()
 

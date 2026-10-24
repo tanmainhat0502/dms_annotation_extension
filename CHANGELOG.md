@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.41 - 2026-10-24
+
+- Keep bbox editing available while **Done all** or another clip/part status batch is saving, so `R` and `C` act immediately instead of waiting for the complete status queue. Status controls remain locked against overlapping status batches, and the currently open frame is queued last.
+- Keep **auto_load_img** progressing with one bounded background image request while frame statuses save, instead of pausing until **Done all** finishes.
+- Add a browser regression that holds four status saves open and verifies concurrent bounded preloading plus immediate `R` deletion and `C` previous-frame copying.
+
 ## 1.6.40 - 2026-10-24
 
 - Fix temporarily missing bbox annotations during fast `Space` playback in parts such as **Other** that collect frames from different source segments. Load the target image and its auto-label data concurrently, prepare upcoming auto-label segments with at most two lookahead requests, and display a frame only after its annotations are ready. Saved edits continue without waiting for auto-label data.

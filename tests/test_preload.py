@@ -175,7 +175,8 @@ async def test_window_rotation(browser):
     assert Counter(g for _, g in server.calls) == Counter(range(12))
     await page.evaluate("Promise.all([6,7,8].map(g=>fsSet('done',g)))")
     await ready_count(page, 3)
-    assert len(await stored(page)) == 3
+    rows = await stored(page)
+    assert len(rows) == 3, rows
     await page.evaluate("Promise.all([9,10,11].map(g=>fsSet('done',g)))")
     await page.wait_for_function("document.querySelector('.nl-load-parts').textContent.includes('All remaining')")
     assert len(await stored(page)) == 0
