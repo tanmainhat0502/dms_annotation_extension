@@ -59,7 +59,7 @@ The dialog has two tabs: **Label actions** and **Change status**. It remembers y
 
 1. Edit or select an annotation in the source frame.
 2. Press `Ctrl+B`, select **Label actions**, and choose what to apply.
-3. Choose **Previous frames** or **Next frames** and enter a positive frame count or `end`. Alternatively, press `G` on the first target before opening the dialog, move to the source frame, and choose **From G to current frame** without entering a count.
+3. Choose **Previous frames** or **Next frames** and enter a positive frame count or `end`. Alternatively, press `G` on the first target before opening the dialog, then move to the source frame. `Ctrl+B` automatically selects **From G to current frame** without a count.
 4. Check the preview, then click **Apply** or press `Enter`.
 
 The source frame is excluded from the count. Done targets are skipped; saved Not checked targets become In progress. Up to four saves run at a time. On an error, no new saves are started; earlier successful saves remain applied.
@@ -74,12 +74,12 @@ The G range stays in one clip and excludes the current source frame for all labe
 
 1. Open `Ctrl+B` and select **Change status**.
 2. Choose **Not checked**, **In progress**, or **Done** as the destination.
-3. Choose **Previous frames** / **Next frames** and a positive count or `end`, choose **Marked frames** to use frames selected with `V`, or press `G` on a start frame and choose **From G to current frame**.
+3. Choose **Previous frames** / **Next frames** and a positive count or `end`, choose **Marked frames** to use frames selected with `V`, or press `G` on a start frame to automatically select **From G to current frame**.
 4. Review the target count, then click **Apply** or press `Enter`.
 
 This tab changes only the active label's frame status. It works without source annotations and includes Done frames. Previous/next counts include the current frame, then continue in the selected direction through hidden frames in the complete current-label clip. They stop at the clip boundary even if the count is larger than the remaining range. Marked targets may span clips, include hidden frames, and include the current frame if you marked it.
 
-The G range includes both its start and current frame, in either direction, within one clip. It also includes frames hidden by status filters. A ✓ G badge marks the start beside the V counter and in the frame list. Press `G` again there to clear it, or press `G` on a different frame to move it. Changing session or label clears the G mark.
+The G range includes both its start and current frame, in either direction, within one clip. It also includes frames hidden by status filters. A ✓ G badge marks the start beside the V counter and in the frame list. G clears automatically after a successful range action, but remains after cancellation or a failed save. Press `G` again on the marked frame to clear it manually, or press `G` on a different frame to move it. Changing session or label clears the G mark.
 
 Existing annotations are preserved. Frames already at the destination status are not saved again. Up to four requests run at once; an error stops new requests and leaves successful saves intact. Retry to save the remaining frames. Session, label, or mode changes stop queued requests. Cancelling this tab does not discard a pending label edit.
 

@@ -53,34 +53,47 @@ async def test_g_range(browser):
     assert await page.locator('li[data-g="225"] .nl-range-mark').count() == 1
     await page.evaluate('show(228)')
     await open_bulk(page, 'status')
-    await choose_status(page, 'done', 'range')
+    assert await page.locator(DIALOG + ' [data-status-direction="range"]').get_attribute('class') == 'on'
+    await page.locator(DIALOG + ' [data-bulk-tab="label"]').click()
+    assert await page.locator(DIALOG + ' [data-eye-direction="range"]').get_attribute('class') == 'on'
+    await page.locator(DIALOG + ' [data-bulk-tab="status"]').click()
+    await page.locator(DIALOG + ' .nl-status-panel input[value="done"]').check()
     assert await page.locator(DIALOG + ' .nl-status-count').is_disabled()
     assert '4 frames' in await page.locator(DIALOG + ' .nl-status-preview').inner_text()
     states = await page.evaluate('Array.from({length:4},(_,i)=>fsGet(225+i))')
     await apply(page)
     assert {p['i'] for p in server.posts} == {225+i for i, value in enumerate(states) if value != 'done'}
-    assert await page.locator('#nl-marked-frames .nl-range-start-badge').is_visible()
+    assert not await page.locator('#nl-marked-frames .nl-range-start-badge').is_visible()
     server.posts.clear()
+    await set_g(page, 225)
     await page.evaluate('show(227)')
     await open_bulk(page, 'status')
     await choose_status(page, 'todo', 'range')
     await apply(page)
     assert {p['i'] for p in server.posts} == {225, 226, 227}
+    assert not await page.locator('#nl-marked-frames .nl-range-start-badge').is_visible()
     server.posts.clear()
-    await set_g(page, 228)  # Move the G start; the range also works backward.
+    await set_g(page, 228)  # The range also works backward.
     await page.evaluate('show(225)')
     await open_bulk(page, 'status')
     await choose_status(page, 'done', 'range')
     await apply(page)
     assert {p['i'] for p in server.posts} == {225, 226, 227}
+    assert not await page.locator('#nl-marked-frames .nl-range-start-badge').is_visible()
+    await set_g(page, 228)
     await page.evaluate('show(250)')  # Another clip cannot silently consume the G range.
     await open_bulk(page, 'status')
-    await choose_status(page, 'done', 'range')
+    assert await page.locator(DIALOG + ' [data-status-direction="range"]').get_attribute('class') == 'on'
     assert await page.locator(DIALOG + ' .nl-status-apply').is_disabled()
     assert 'outside this clip' in await page.locator(DIALOG + ' .nl-status-preview').inner_text()
     await page.keyboard.press('Escape')
+    assert await page.locator('#nl-marked-frames .nl-range-start-badge').is_visible()
     await set_g(page, 228)
     assert not await page.locator('#nl-marked-frames .nl-range-start-badge').is_visible()
+    await page.evaluate('show(228)')
+    await open_bulk(page, 'status')
+    assert await page.locator(DIALOG + ' [data-status-direction="after"]').get_attribute('class') == 'on'
+    await page.keyboard.press('Escape')
     await set_g(page, 225)
     await page.evaluate("S.labelSel='hand';buildSeq();renderLabList()")
     await settle(page)
@@ -116,16 +129,51 @@ async def test_g_label_actions(browser):
         await set_g(page, 225)
         await page.evaluate('show(228)')
         await open_bulk(page, 'label')
-        await page.locator(DIALOG + (' [data-direction="range"]' if label == 'seatbelt' else ' [data-eye-direction="range"]')).click()
+        range_button = DIALOG + (' [data-direction="range"]' if label == 'seatbelt' else ' [data-eye-direction="range"]')
+        assert await page.locator(range_button).get_attribute('class') == 'on'
         assert await page.locator(DIALOG + ' .nl-count').is_disabled()
         assert '3 ' in await page.locator(DIALOG + ' .nl-label-panel .nl-preview').inner_text()
         await page.locator(DIALOG + ' .nl-apply').click()
         await page.wait_for_selector(DIALOG, state='hidden')
         assert {p['i'] for p in label_posts} == {225, 226, 227}, (label, label_posts)
+        assert not await page.locator('#nl-marked-frames .nl-range-start-badge').is_visible()
+        await open_bulk(page, 'label')
+        next_button = DIALOG + (' [data-direction="after"]' if label == 'seatbelt' else ' [data-eye-direction="after"]')
+        assert await page.locator(next_button).get_attribute('class') == 'on'
+        await page.keyboard.press('Escape')
         assert not server.posts
         assert not errors, errors
         await page.close()
     print('PASS: G-to-current copies bbox, landmark and seatbelt labels to the intervening frames, excluding the source')
+
+
+async def test_g_retry_and_other_direction(browser):
+    page, server, errors = await setup(browser)
+    await set_g(page, 225)
+    await page.evaluate('show(228)')
+    await open_bulk(page, 'status')
+    assert await page.locator(DIALOG + ' [data-status-direction="range"]').get_attribute('class') == 'on'
+    await page.locator(DIALOG + ' .nl-status-panel input[value="done"]').check()
+    server.fail = {226}
+    await page.locator(DIALOG + ' .nl-status-apply').click()
+    await page.wait_for_function("document.querySelector('dialog[open] .nl-status-preview').textContent.includes('Stopped on error')")
+    assert await page.locator('#nl-marked-frames .nl-range-start-badge').is_visible()
+    server.fail.clear()
+    await apply(page)
+    assert not await page.locator('#nl-marked-frames .nl-range-start-badge').is_visible()
+
+    await set_g(page, 225)
+    await page.evaluate('show(228)')
+    await open_bulk(page, 'status')
+    await choose_status(page, 'wip', 'after', '1')
+    await apply(page)
+    assert await page.locator('#nl-marked-frames .nl-range-start-badge').is_visible(), 'A non-G action must keep G'
+    await open_bulk(page, 'status')
+    assert await page.locator(DIALOG + ' [data-status-direction="range"]').get_attribute('class') == 'on'
+    await page.keyboard.press('Escape')
+    assert not errors, errors
+    await page.close()
+    print('PASS: G remains after failed or unrelated actions, then clears only after a successful G action')
 
 
 async def test_tabs(browser):
@@ -347,6 +395,7 @@ async def main():
             await test_marks(browser)
             await test_g_range(browser)
             await test_g_label_actions(browser)
+            await test_g_retry_and_other_direction(browser)
             await test_failure_and_scope(browser)
             await test_label_action_isolation(browser)
         finally:

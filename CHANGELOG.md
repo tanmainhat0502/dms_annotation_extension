@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.47 - 2026-10-25
+
+- When a G start is marked, `Ctrl+B` automatically selects **From G to current frame** in both **Change status** and **Label actions**. Without a G start, the dialog returns to the usual next-frame selection.
+- Clear G after a successful G-range operation. Keep it when the dialog is canceled, saving fails, or a different target direction is applied, so the range can be retried.
+
 ## 1.6.46 - 2026-10-24
 
 - Add eye 15pt shortcuts: `N` creates a group on the next image click, `R` deletes the selected eye, `X` deletes all, `1` / `2` delete left/right, `C` copies the nearest earlier nonempty frame, `Ctrl+C` / `Ctrl+V` copy between frames, and `Z` undoes group and point edits. `Shift+X` and `Shift+C` advance afterward. Move the native closed-eye shortcut to `Alt+C`; its checkbox remains available.

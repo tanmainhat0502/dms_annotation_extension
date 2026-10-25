@@ -287,6 +287,15 @@
 
   function showBulkDialog(dialog) {
     prepareBulkStatusContext();
+    if (Number.isInteger(state.rangeStart)) {
+      state.bulkStatusDirection = "range";
+      if (dialog === state.eyeBulkDialog) state.eyeBulkDirection = "range";
+      else state.bulkDirection = "range";
+    } else {
+      if (state.bulkStatusDirection === "range") state.bulkStatusDirection = "after";
+      if (dialog === state.eyeBulkDialog && state.eyeBulkDirection === "range") state.eyeBulkDirection = "after";
+      if (dialog === state.bulkDialog && state.bulkDirection === "range") state.bulkDirection = "after";
+    }
     selectBulkTab(dialog, state.bulkTab, false);
     if (!dialog.open) dialog.showModal();
     const input = dialog.querySelector(state.bulkTab === "status" ? ".nl-status-count" : ".nl-count");
@@ -300,6 +309,13 @@
       generation: S.gen, sourceKey: typeof rvKey === "function" ? rvKey(S.shownG) : "",
       label, labelName: genericLabelName(label), sourceItems: [], selected: []
     };
+  }
+
+  function clearAppliedGRange(direction, start, scope) {
+    if (direction !== "range" || !Number.isInteger(start) ||
+        state.rangeStart !== start || !partStatusMatches(scope)) return;
+    state.rangeStart = null;
+    updateMarkedUI();
   }
 
   function selectedStatusTargets(dialog) {
@@ -361,6 +377,8 @@
     const picked = selectedStatusTargets(dialog);
     const context = state.bulkStatusContext;
     const value = state.bulkStatusValue;
+    const appliedDirection = state.bulkStatusDirection;
+    const appliedG = state.rangeStart;
     if (picked.error || !FRAME_STATES.includes(value)) { updateBulkStatusPanel(dialog); return; }
     // Recheck authorization when applying; a filter changes visibility, not the
     // complete current-label scope. Status changes never read/write annotations.
@@ -397,6 +415,7 @@
       }
       if (result.error) throw new Error(`saved ${result.completed}/${targets.length}: ${result.error.message}`);
       dialog.close();
+      clearAppliedGRange(appliedDirection, appliedG, context);
       notify(`Set ${targets.length} frames to ${statusName(value)}`);
     } catch (error) {
       preview.classList.add("err");
@@ -796,6 +815,9 @@
     if (state.operationBusy || !pageLabelingReady("eye_lmk")) return;
     const context = state.eyeBulkContext;
     const picked = selectedEyeBulkTargets();
+    const appliedDirection = state.eyeBulkDirection;
+    const appliedG = state.rangeStart;
+    const appliedScope = currentLabelScope();
     if (!context || context.generation !== S.gen || picked.error) {
       updateEyeBulkDialog();
       return;
@@ -837,6 +859,7 @@
       if (typeof paint === "function" && S.gen === context.generation) paint();
       if (result.error) throw new Error(`saved ${result.completed}/${targets.length}: ${result.error.message}`);
       dialog.close();
+      clearAppliedGRange(appliedDirection, appliedG, appliedScope);
       notify(`Copied ${sourceItems.length} eye 15pt groups to ${targets.length} frames. Drag inside the dashed box to move the entire eye.`);
     } catch (error) {
       preview.classList.add("err");
@@ -859,6 +882,9 @@
     if (state.operationBusy || !context || !GENERIC_COPY_LABELS.has(context.label) ||
         !pageLabelingReady(context.label)) return;
     const picked = selectedEyeBulkTargets();
+    const appliedDirection = state.eyeBulkDirection;
+    const appliedG = state.rangeStart;
+    const appliedScope = currentLabelScope();
     if (context.generation !== S.gen || context.label !== S.labelSel || picked.error) {
       updateEyeBulkDialog();
       return;
@@ -910,6 +936,7 @@
       }
       if (result.error) throw new Error(`saved ${result.completed}/${targets.length}: ${result.error.message}`);
       dialog.close();
+      clearAppliedGRange(appliedDirection, appliedG, appliedScope);
       notify(operation?.type === "delete"
         ? `Deleted ${context.labelName} boxes across ${targets.length} frames`
         : operation?.type === "edge"
@@ -934,6 +961,9 @@
     if (state.operationBusy || !pageLabelingReady("seatbelt")) return;
     const context = state.bulkContext;
     const picked = selectedBulkTargets();
+    const appliedDirection = state.bulkDirection;
+    const appliedG = state.rangeStart;
+    const appliedScope = currentLabelScope();
     if (!context || picked.error || maskBulkBlockReason()) {
       updateBulkDialog();
       return;
@@ -983,6 +1013,7 @@
       if (typeof paint === "function" && S.gen === context.generation) paint();
       if (result.error) throw new Error(`saved ${result.completed}/${targets.length}: ${result.error.message}`);
       dialog.close();
+      clearAppliedGRange(appliedDirection, appliedG, appliedScope);
       notify(`${operation === "subtract" ? "Erased the seatbelt region on" : "Applied the mask to"} ${targets.length} frames in ${context.clip}`);
     } catch (error) {
       preview.classList.add("err");
