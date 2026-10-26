@@ -42,14 +42,12 @@
     if (state.faceUndo.length > 30) state.faceUndo.splice(0, state.faceUndo.length - 30);
   }
 
-  // Positions follow the native face 7pt reference image (left/right are
-  // screen coordinates). The dragged rectangle is only a placement guide;
-  // the saved annotation is still seven independently editable points.
+  // The user draws the visible face from eyebrow level to the chin, rather
+  // than a full head/forehead box. Keep the eyes near the top of that crop;
+  // left/right are screen coordinates. Only the seven points are saved.
   const FACE_TEMPLATE = [
-    [58.7 / 260, 143.3 / 280], [103.3 / 260, 147 / 280],
-    [157.7 / 260, 147.5 / 280], [201.1 / 260, 143.3 / 280],
-    [87.5 / 260, 212.8 / 280], [174 / 260, 212 / 280],
-    [123.9 / 260, 201.5 / 280]
+    [0.10, 0.24], [0.41, 0.25], [0.59, 0.25], [0.90, 0.24],
+    [0.34, 0.79], [0.68, 0.79], [0.50, 0.64]
   ];
   const FACE_COLORS = ["#ff3cff", "#ff3cff", "#ff3cff", "#ff3cff",
     "#00e5ff", "#00e5ff", "#ff8c1a"];

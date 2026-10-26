@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.50 - 2026-10-26
+
+- Recalibrate the face 7pt `N`-drag preview for a rectangle drawn from eyebrow level to the chin. Eyes now start near the top of that rectangle and span the visible eye corners; the nose sits above the mouth. Preview and saved coordinates use the same template.
+- Extend the browser regression to check all seven point positions, including the live preview.
+
 ## 1.6.49 - 2026-10-26
 
 - In face 7pt labeling, press `N` and drag a face rectangle to preview the seven numbered landmarks; release to create them. `Esc` cancels, `Z` undoes, and existing points are preserved when adding another group.

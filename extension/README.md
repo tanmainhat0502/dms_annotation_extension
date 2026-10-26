@@ -147,7 +147,7 @@ Drag an empty area inside the dashed eye box to move all 15 points. Hold `Ctrl` 
 
 ## Face 7pt
 
-Press `N`, then drag a rectangle around the face. The seven numbered points preview inside the rectangle while dragging; release to create the points, then drag individual points to refine them. `Esc` or a second `N` cancels before release. A small drag is ignored. If the frame has a blank seven-point group, creation fills it; otherwise it adds a new group without replacing existing points. The rectangle is only a creation guide, not a saved face bbox.
+Press `N`, then drag a rectangle over the visible face, with its top roughly at the eyebrows and bottom at the chin. The seven numbered points preview inside the rectangle while dragging: eyes near the upper quarter, nose around the middle, and mouth near the lower fifth. Release to create the points, then drag individual points to refine them. `Esc` or a second `N` cancels before release. A small drag is ignored. If the frame has a blank seven-point group, creation fills it; otherwise it adds a new group without replacing existing points. The rectangle is only a creation guide, not a saved face bbox.
 
 `C` copies all seven points from the nearest earlier frame that has placed points; `Shift+C` also advances. `Ctrl+C` / `Ctrl+V` copy and paste the point group between frames. `Z` undoes creation, copying and point edits. `R`, `Delete`, `Backspace`, and `X` mark the selected point(s) as Not found. Seatbelt retains native `Delete` for mask selection and `R` for accepting a SAM3 preview.
 

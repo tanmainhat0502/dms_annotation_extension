@@ -36,14 +36,16 @@ def main():
         drag((40, 10), (360, 190), release=False)
         during = page.evaluate("""()=>({draft:!!window.__notaOrganizerV1.state.faceCreateDraft,
           points:ED.items[0].pts,saves:window.saves.length,
-          preview:ctx.getImageData(112,102,1,1).data[3]})""")
+          preview:ctx.getImageData(72,53,1,1).data[3]})""")
         assert during['draft'] and during['points'] == [None] * 7, during
         assert during['saves'] == 0 and during['preview'] > 0, during
         page.mouse.up()
         created = page.evaluate('ED.items')
         assert len(created) == 1 and len(created[0]['pts']) == 7, created
         assert all(point is not None for point in created[0]['pts']), created
-        assert created[0]['pts'][0] == [112.2, 102.1], created
+        assert created[0]['pts'] == [[72, 53.2], [171.2, 55], [228.8, 55],
+                                     [328, 53.2], [148.8, 152.2], [257.6, 152.2],
+                                     [200, 125.2]], created
         assert page.evaluate('window.saves.length') == 1
         assert page.evaluate('window.__notaOrganizerV1.state.faceCreateMode') is False
         page.keyboard.press('z')
