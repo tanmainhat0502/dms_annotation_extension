@@ -1,6 +1,6 @@
 # NOTA Labeling Organizer — usage guide
 
-**Version 1.6.54 · English**
+**Version 1.6.55 · English**
 
 For installation screenshots and the complete shortcut tables, see the [GitHub README](https://github.com/tanmainhat0502/dms_annotation_extension#readme).
 
@@ -59,14 +59,14 @@ The dialog has two tabs: **Label actions** and **Change status**. It remembers y
 
 1. Edit or select an annotation in the source frame.
 2. Press `Ctrl+B`, select **Label actions**, and choose what to apply.
-3. Choose **Previous frames** or **Next frames** and enter a positive frame count or `end`. Alternatively, press `G` on the first target before opening the dialog, then move to the source frame. `Ctrl+B` automatically selects **From G to current frame** without a count.
+3. Choose **Previous frames** or **Next frames** and enter a positive frame count or `end`. Alternatively, press `G` on a range endpoint before opening the dialog, then move to the other endpoint. `Ctrl+B` automatically selects **From G to current frame** without a count.
 4. Check the preview, then click **Apply** or press `Enter`.
 
 The source frame is excluded from the count. Done targets are skipped; saved Not checked targets become In progress. Up to four saves run at a time. On an error, no new saves are started; earlier successful saves remain applied.
 
 For every bbox label, `V` marks targets and this tab offers **Marked frames**. These targets can span clips in the same session and label.
 
-The G range stays in one clip and excludes the current source frame for all label actions, including copy, delete, edge adjustment and seatbelt mask edits. The first G frame may be before or after the source.
+The G range stays in one clip and excludes the source frame for all label actions, including copy, delete, edge adjustment and seatbelt mask edits. The first G frame may be before or after the source. For eye 15pt, if the current frame has no eyes, the G frame's eyes become the source and are copied to the intervening frames, including the current frame. The dialog defaults to copying all eyes from G; **Selected eye only** is also available when an eye was selected on the G frame.
 
 `Esc` / **Cancel** discards the pending region; it does not undo edits already saved. A running bulk save cannot be canceled through this dialog.
 

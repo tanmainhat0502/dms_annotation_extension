@@ -159,8 +159,9 @@
     if (startIndex < 0) {
       return { targets: [], error: "The G start frame is outside this clip or the current BBox filter." };
     }
-    const from = Math.min(startIndex, context.sourceIndex);
-    const to = Math.max(startIndex, context.sourceIndex);
+    const endIndex = Number.isInteger(context.rangeEndIndex) ? context.rangeEndIndex : context.sourceIndex;
+    const from = Math.min(startIndex, endIndex);
+    const to = Math.max(startIndex, endIndex);
     const targets = context.frames.slice(from, to + 1)
       .filter((g) => includeCurrent || g !== context.source);
     return { targets, error: targets.length ? "" : "G is on the current frame. Move to another frame before applying a label action." };
@@ -315,6 +316,7 @@
     if (direction !== "range" || !Number.isInteger(start) ||
         state.rangeStart !== start || !partStatusMatches(scope)) return;
     state.rangeStart = null;
+    state.eyeGSource = null;
     updateMarkedUI();
   }
 
@@ -602,7 +604,7 @@
       ? "Selected eye only"
       : context.selectedMode === "clicked" ? "Selected box only" : "Newly added box only";
     dialog.querySelector(".nl-item-all-text").textContent = eyeMode
-      ? "All eyes in the current frame"
+      ? context.gSource ? "All eyes in the G frame" : "All eyes in the current frame"
       : boxMode ? "All boxes in the current frame" : "All face 7pt groups in the current frame";
     dialog.querySelector(".nl-write-label").hidden = !eyeMode || operationMode;
     dialog.querySelector(".nl-write-options").hidden = !eyeMode || operationMode;
@@ -624,7 +626,7 @@
     const context = currentEyeClipContext() || emptyLabelBulkContext("eye_lmk");
     state.eyeBulkContext = context;
     const dialog = ensureEyeBulkDialog();
-    dialog.querySelector(`input[name="nl-eye-scope"][value="${context.selected.length ? "selected" : "all"}"]`).checked = true;
+    dialog.querySelector(`input[name="nl-eye-scope"][value="${context.gSource ? "all" : context.selected.length ? "selected" : "all"}"]`).checked = true;
     updateEyeBulkDialog();
     showBulkDialog(dialog);
   }

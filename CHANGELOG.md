@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.55 - 2026-10-26
+
+- Fix eye 15pt G-range copying when the marked G frame contains eyes but the current frame is empty. Ctrl+B now uses the G frame's captured eyes as the source and copies through the current frame, without changing existing current-frame-source behavior.
+- Preserve the G frame's selected-eye option, default to all eyes in this case, and add a browser regression for the empty-current-frame workflow.
+
 ## 1.6.54 - 2026-10-26
 
 - Double-click an eye 15pt upper or lower eyelid point to close that eye along the clicked lid. The opposite lid's six points follow it; corners, pupil, and other eye groups are preserved. `Z` undoes the change.

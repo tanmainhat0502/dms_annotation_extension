@@ -126,6 +126,7 @@
       state.markedFrames.clear();
       state.bboxMarkedFrames.clear();
       state.rangeStart = null;
+      state.eyeGSource = null;
       state.markedScope = currentLabelScope();
       state.bboxMarkedScope = state.markedScope;
     }
@@ -246,6 +247,21 @@
     const g = Number(S.shownG);
     if (!Number.isInteger(g) || !S.lseq?.includes(g)) return;
     state.rangeStart = state.rangeStart === g ? null : g;
+    state.eyeGSource = null;
+    if (state.rangeStart !== null && S.labelSel === "eye_lmk") {
+      let items = [];
+      try {
+        if (typeof ED !== "undefined" && ED.lab === "eye_lmk" && Array.isArray(ED.items)) {
+          items = NL.cloneEyeItems(ED.items);
+        }
+        if (!items.length && typeof NL.currentEyeItems === "function") items = NL.currentEyeItems();
+      } catch (_) {}
+      state.eyeGSource = {
+        ...currentLabelScope(), g, items,
+        selected: typeof LM !== "undefined" && Number.isInteger(LM.n) && LM.n >= 0 && LM.n < items.length
+          ? [LM.n] : []
+      };
+    }
     updateMarkedUI();
     notify(state.rangeStart === null
       ? "G range start cleared"

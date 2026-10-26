@@ -265,15 +265,37 @@
   function currentEyeClipContext() {
     const base = activeClipBaseContext("eye_lmk");
     if (!base) return null;
-    const sourceItems = currentEyeItems();
+    let sourceItems = currentEyeItems();
+    let source = base.source;
+    let sourceIndex = base.sourceIndex;
+    let sourceKey = base.sourceKey;
+    let rangeEndIndex;
+    let gSource = false;
     let selected = [];
     try {
       if (typeof LM !== "undefined" && Number.isInteger(LM.n) && LM.n >= 0 && LM.n < sourceItems.length) {
         selected = [LM.n];
       }
     } catch (_) {}
+    const marked = state.eyeGSource;
+    if (!sourceItems.length && marked?.session === S.sess && marked.generation === S.gen &&
+        marked.label === "eye_lmk" && marked.g === state.rangeStart && marked.items?.length) {
+      const markedIndex = base.frames.indexOf(marked.g);
+      if (markedIndex >= 0) {
+        sourceItems = cloneEyeItems(marked.items);
+        selected = marked.selected.filter((index) => index >= 0 && index < sourceItems.length);
+        if (marked.g !== base.source) {
+          source = marked.g;
+          sourceIndex = markedIndex;
+          sourceKey = typeof rvKey === "function" ? rvKey(source) : "";
+          rangeEndIndex = base.sourceIndex;
+          gSource = true;
+        }
+      }
+    }
     return {
       ...base,
+      source, sourceIndex, sourceKey, rangeEndIndex, gSource,
       label: "eye_lmk",
       labelName: "eye 15pt",
       sourceItems,

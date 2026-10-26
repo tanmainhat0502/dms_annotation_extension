@@ -2,7 +2,7 @@
 
 A Chrome extension for faster annotation in **DMS Labeling**. Group frames by clip, edit labels with keyboard shortcuts, and repeat changes across multiple frames.
 
-**Version 1.6.54 · English**
+**Version 1.6.55 · English**
 
 [Download the latest release](https://github.com/tanmainhat0502/dms_annotation_extension/releases/latest) · [Detailed usage guide](extension/README.md) · [Changelog](CHANGELOG.md)
 
@@ -62,7 +62,7 @@ Reload your DMS tab and open **Labeling**. Search for a part, expand a clip such
 | Edit bounding boxes | Press `N` and click two opposite corners to create a box. Use `M` to draw a region that deletes boxes inside it. Handles keep tracking the pointer across image edges; boxes dragged outside are clipped on release. |
 | Bulk action tabs | `Ctrl+B` has **Label actions** for copy/delete/adjust and **Change status** for Not checked, In progress, or Done. It remembers the last selected tab, including after reload. |
 | Change frame status in bulk | In **Change status**, select previous/next frames with a count or `end`, choose **Marked frames** from your `V` selection, or press `G` on the first frame to select **From G to current frame** automatically when `Ctrl+B` opens. The G range includes both endpoints. Includes Done and hidden frames, skips frames already at the destination status, and preserves annotations. |
-| Copy annotations | Press `Ctrl+B` → **Label actions** to copy boxes, eye 15pt, face 7pt, or seatbelt edits to previous/next frames. Enter a frame count or `end`, or mark the first target with `G` to automatically select **From G to current frame**. |
+| Copy annotations | Press `Ctrl+B` → **Label actions** to copy boxes, eye 15pt, face 7pt, or seatbelt edits to previous/next frames. Enter a frame count or `end`, or mark a range endpoint with `G` to automatically select **From G to current frame**. For eye 15pt, an empty current frame can receive eyes from the G frame. |
 | Copy one box | Select a box, then use `Ctrl+B`. Matching target boxes are replaced and duplicates merged; other objects stay. If there is no match, a new box is added. Choosing all boxes replaces the entire target box list. |
 | Adjust any bbox edge | For every bbox label, double-click the middle handle of the top, bottom, left, or right edge and drag it. `Ctrl+B` changes only that coordinate on each existing matching box; its other three coordinates and the number of boxes stay unchanged. |
 | Edit seatbelt masks | Draw an add polygon with `N`, erase with `M`, or accept a green SAM3 preview with `R`. Bulk edits can use just the latest change or the entire mask. |
@@ -73,7 +73,7 @@ Reload your DMS tab and open **Labeling**. Search for a part, expand a clip such
 
 **Change status:** affects the active label only. Previous/next counts include the current frame, then continue in the selected direction through the complete current-label clip, including frames hidden by filters. **Marked frames** can span clips and include the current frame if marked. `V` marks/unmarks any status for every label. Marks remain available after saving; use `V` or **Clear selection** to remove them. Changing session or label clears that selection.
 
-**G range:** press `G` to mark a start frame, navigate to the other end, then press `Ctrl+B`. **From G to current frame** is selected automatically in either tab. The range stays within one clip; no count is needed. Status changes include both endpoints. Label actions use the current frame as their source and apply only to the other frames in the range. G clears after a successful range action, but stays if you cancel or saving fails. You can also press `G` again on the marked frame to clear it, or on another frame to move the start. Changing session or label clears it.
+**G range:** press `G` to mark a start frame, navigate to the other end, then press `Ctrl+B`. **From G to current frame** is selected automatically in either tab. The range stays within one clip; no count is needed. Status changes include both endpoints. Label actions normally copy from the current frame to the other frames in the range. For eye 15pt, if the current frame has no eyes, the eyes captured on the G frame become the source and are copied through the current frame. G clears after a successful range action, but stays if you cancel or saving fails. You can also press `G` again on the marked frame to clear it, or on another frame to move the start. Changing session or label clears it.
 
 **Box matching uses geometry**, not visual object recognition. Boxes that overlap by at least 90% IoU are highlighted red. The image also shows a bbox count.
 

@@ -181,6 +181,52 @@ async def test_eye_selected_merge_keeps_opposite_eye(browser):
     print('PASS: Ctrl+B selected-eye merge adds a missing left eye and preserves the existing right eye')
 
 
+async def test_g_eye_source_when_current_is_empty(browser):
+    page, server, errors = await setup(browser)
+    label_posts = []
+
+    async def save_label(route):
+        label_posts.append(route.request.post_data_json)
+        await route.fulfill(body='{}', content_type='application/json')
+
+    await page.route('**/api/label_edit', save_label)
+    await page.evaluate("""()=>{
+      S.labelSel='eye_lmk';
+      for(const item of Object.values(S.review))item.labels=['eye_lmk'];
+      const eye=x=>({pts:Array.from({length:15},(_,i)=>[x+i,40+i])});
+      for(let g=225;g<=228;g++){
+        S.ledits[rvKey(g)]={eye_lmk:g===225?[eye(30),eye(230)]:[]};
+        S.fstat[rvKey(g)]={eye_lmk:{s:'wip'}};
+      }
+      window.LM={n:0};
+      buildSeq();renderLabList();show(225);
+    }""")
+    await settle(page)
+    await set_g(page, 225)
+    assert await page.evaluate('window.__notaOrganizerV1.state.eyeGSource.items.length') == 2
+    await page.evaluate('delete S.ledits[rvKey(225)].eye_lmk')
+    await open_bulk(page, 'label')
+    assert await page.evaluate('window.__notaOrganizerV1.state.eyeBulkContext.sourceItems.length') == 2
+    assert 'G is on the current frame' in await page.locator(DIALOG + ' .nl-label-panel .nl-preview').inner_text()
+    await page.keyboard.press('Escape')
+    await page.evaluate('show(228)')
+    await open_bulk(page, 'label')
+    assert await page.evaluate('window.__notaOrganizerV1.state.eyeBulkContext.source') == 225
+    assert await page.locator(DIALOG + ' input[name="nl-eye-scope"][value="all"]').is_checked()
+    assert await page.locator(DIALOG + ' .nl-eye-selected-option').is_visible()
+    assert await page.locator(DIALOG + ' [data-eye-direction="range"]').get_attribute('class') == 'on'
+    assert '3 frames' in await page.locator(DIALOG + ' .nl-label-panel .nl-preview').inner_text()
+    assert await page.locator(DIALOG + ' .nl-apply').is_enabled()
+    await page.locator(DIALOG + ' .nl-apply').click()
+    await page.wait_for_selector(DIALOG, state='hidden')
+    assert {post['i'] for post in label_posts} == {226, 227, 228}, label_posts
+    assert all(len(post['items']) == 2 for post in label_posts)
+    assert not await page.locator('#nl-marked-frames .nl-range-start-badge').is_visible()
+    assert not server.posts and not errors, errors
+    await page.close()
+    print('PASS: eye 15pt G-source snapshot copies into an empty current frame and clears G')
+
+
 async def test_g_retry_and_other_direction(browser):
     page, server, errors = await setup(browser)
     await set_g(page, 225)
@@ -430,6 +476,7 @@ async def main():
             await test_g_range(browser)
             await test_g_label_actions(browser)
             await test_eye_selected_merge_keeps_opposite_eye(browser)
+            await test_g_eye_source_when_current_is_empty(browser)
             await test_g_retry_and_other_direction(browser)
             await test_failure_and_scope(browser)
             await test_label_action_isolation(browser)
