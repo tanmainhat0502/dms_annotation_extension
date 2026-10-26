@@ -125,6 +125,8 @@ Closing the polygon saves the current frame immediately. An add polygon exits dr
 
 `Z` removes the last point while drawing, or undoes the latest mask edit on the current frame. `Esc` clears the drawing or pending region; use `Z` to undo a saved edit.
 
+`C` copies the full mask from the nearest earlier frame with a nonempty mask; `Shift+C` also advances. `Ctrl+C` copies the current full mask and `Ctrl+V` replaces the mask in another frame. `Z` undoes either paste or previous-frame copy. These shortcuts wait for any pending SAM3 preview or polygon to be resolved.
+
 ### SAM3
 
 In **1 Point SAM**, left-click adds a positive prompt and right-click adds a negative prompt. Wait for the green preview, then press `R` or **Enter / Add** to add it. **Shift+Enter / Subtract** removes that area instead.
@@ -139,9 +141,13 @@ The dashed SAM3 box is a processing region, separate from the mask. It is rememb
 
 Press `N`, then click the center of an eye in the image to create a default 15-point group. Press `Esc` to cancel add mode. `R` deletes the selected eye, `X` deletes all eyes, and `1` / `2` delete the leftmost / rightmost eye. `Shift+X` deletes all and advances to the next frame. `C` copies all eye groups from the nearest earlier frame with eye points (skipping empty frames); `Shift+C` also advances. `Ctrl+C` / `Ctrl+V` copy and paste all eye groups between frames. `Z` undoes the latest eye edit, including point moves and group transforms. `Alt+C` toggles the selected eye's closed state; the **Closed eye** checkbox remains available.
 
-Select an eye and press `Ctrl+B`. Choose **Selected eye only** or **All eyes in the current frame**, then choose whether to replace matching eyes and keep the others, or replace all target eyes.
+Select an eye and press `Ctrl+B`. Choose **Selected eye only** or **All eyes in the current frame**, then choose whether to replace matching eyes and keep the others, or replace all target eyes. Matching uses the eye's image position; copying a left eye into a frame containing only the right eye adds the left eye and keeps the right.
 
 Drag an empty area inside the dashed eye box to move all 15 points. Hold `Ctrl` while dragging to rotate; drag edge or corner handles to resize. Dragging a point edits only that point. `K` hides or shows the eye points without deleting them.
+
+## Face 7pt
+
+`C` copies all seven points from the nearest earlier frame that has placed points; `Shift+C` also advances. `Ctrl+C` / `Ctrl+V` copy and paste the point group between frames. `Z` undoes copying and native point edits. `X` still marks the selected point as Not found.
 
 ## Mark frames with V
 

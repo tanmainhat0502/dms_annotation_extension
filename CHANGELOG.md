@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.48 - 2026-10-26
+
+- Add `C` / `Shift+C` and `Ctrl+C` / `Ctrl+V` to face 7pt and seatbelt, with `Z` undo for copied annotations. Face 7pt also records native point edits for undo. Keep face `X` for Not found points and seatbelt `R` for SAM3.
+- Match eye 15pt groups by image position when **Ctrl+B → Selected eye only → Replace matching eyes and keep the others** is used. Copying a left eye into a frame that only has a right eye now adds the left eye without deleting the right.
+- Add browser regressions for these shortcuts and the selected-eye bulk merge.
+
 ## 1.6.47 - 2026-10-25
 
 - When a G start is marked, `Ctrl+B` automatically selects **From G to current frame** in both **Change status** and **Label actions**. Without a G start, the dialog returns to the usual next-frame selection.

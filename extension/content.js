@@ -12,6 +12,8 @@
     copyQuickBboxToClipboard, deleteQuickBbox, ensureBboxEditing, ensureBulkDialog,
     ensureCurrentClipOpen, ensureEyeBulkDialog, ensureEyeGroupDragging, ensureEyePanelHint,
     ensureEyeShortcutTracking, eyeLandmarkActive, handleEyeShortcut, deleteEye, undoEye,
+    ensureFaceShortcutTracking, faceLandmarkActive, handleFaceShortcut, undoFace,
+    handleSeatbeltShortcut,
     ensureEyeTransformDrawing, ensureLabelVisibility, ensureNativeEditing,
     ensureOrganizedPlayback, ensurePointerPerformance, ensurePolygonDrawing,
     ensurePolygonTools, ensureSidebarRendering, ensureStatusFilters, ensureStatusRendering,
@@ -141,16 +143,19 @@
       return;
     }
     if (event.code === "KeyZ" && !event.altKey && !event.shiftKey && !anyBulkDialogOpen() &&
-        (bboxLabelingReady() || eyeLandmarkActive() || pageLabelingReady("seatbelt"))) {
+        (bboxLabelingReady() || eyeLandmarkActive() || faceLandmarkActive() || pageLabelingReady("seatbelt"))) {
       consumeKeyEvent(event);
       if (!event.repeat) {
         if (bboxLabelingReady()) undoQuickBbox();
         else if (eyeLandmarkActive()) undoEye();
+        else if (faceLandmarkActive()) undoFace();
         else undoSeatbelt();
       }
       return;
     }
     if (!anyBulkDialogOpen() && handleEyeShortcut(event, hasCtrlOrMeta, noModifiers, consumeKeyEvent)) return;
+    if (!anyBulkDialogOpen() && handleFaceShortcut(event, hasCtrlOrMeta, noModifiers, consumeKeyEvent)) return;
+    if (!anyBulkDialogOpen() && handleSeatbeltShortcut(event, hasCtrlOrMeta, noModifiers, consumeKeyEvent)) return;
     if (!anyBulkDialogOpen() && quickBboxReady() && handleQuickBboxShortcut(event, hasCtrlOrMeta, noModifiers)) return;
     if (event.code === "Escape" && (state.manualMode || state.lastPatch)) {
       consumeKeyEvent(event);
@@ -203,6 +208,7 @@
     ensureBboxEditing();
     ensureLabelVisibility();
     ensureEyeShortcutTracking();
+    ensureFaceShortcutTracking();
     ensureEyeGroupDragging();
     ensureEyeTransformDrawing();
     ensureEyePanelHint();

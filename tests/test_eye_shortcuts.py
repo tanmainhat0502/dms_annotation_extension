@@ -109,6 +109,20 @@ def main():
         assert items() == []
         print('PASS: C skips empty frames; Alt+C toggles closed eyes; Ctrl+C/V and Z copy/undo')
 
+        result = page.evaluate("""()=>{
+          const merge=window.__notaOrganizerV1.mergeEyeLandmarks;
+          const left=one(40), right=one(240), updatedLeft=one(45);
+          return {
+            rightOnly:merge([right],[updatedLeft],{sourceItems:[updatedLeft],selected:[0]},'selected'),
+            both:merge([left,right],[updatedLeft],{sourceItems:[updatedLeft],selected:[0]},'selected'),
+            rightSelected:merge([left],[left,one(245)],{sourceItems:[left,one(245)],selected:[1]},'selected')
+          };
+        }""")
+        assert [item['pts'][0][0] for item in result['rightOnly']] == [240, 45], result
+        assert [item['pts'][0][0] for item in result['both']] == [45, 240], result
+        assert [item['pts'][0][0] for item in result['rightSelected']] == [40, 245], result
+        print('PASS: selected-eye merge preserves the opposite eye, including one-eye targets')
+
         page.evaluate('reset(2,[one(50)])')
         page.locator('#view').click(position={'x': 180, 'y': 80}, modifiers=['Shift'])
         assert items()[0]['pts'][0][0] == 55

@@ -310,28 +310,50 @@
     return points?.length ? points.reduce((sum, point) => sum + point[0], 0) / points.length : Infinity;
   }
 
+  function eyeGeometry(item) {
+    const points = item?.pts?.filter((point) => Array.isArray(point));
+    if (!points?.length) return null;
+    const xs = points.map((point) => point[0]);
+    const ys = points.map((point) => point[1]);
+    const left = Math.min(...xs), right = Math.max(...xs);
+    const top = Math.min(...ys), bottom = Math.max(...ys);
+    return { x: (left + right) / 2, y: (top + bottom) / 2,
+      width: Math.max(1, right - left), height: Math.max(1, bottom - top) };
+  }
+
   function mergeEyeLandmarks(targetItems, sourceItems, context, scope) {
     const nextItems = cloneEyeItems(targetItems);
-    const sourceOrder = context.sourceItems
-      .map((item, index) => ({ index, x: eyeCenterX(item) }))
-      .sort((left, right) => left.x - right.x)
-      .map((entry) => entry.index);
-    const targetOrder = nextItems
-      .map((item, index) => ({ index, x: eyeCenterX(item) }))
-      .sort((left, right) => left.x - right.x)
-      .map((entry) => entry.index);
-    const sourceIndexes = scope === "selected" ? context.selected : sourceOrder;
+    const sourceIndexes = scope === "selected" ? context.selected : context.sourceItems.map((_, index) => index);
+    const available = new Set(nextItems.map((_, index) => index));
     for (const sourceIndex of sourceIndexes) {
       const source = context.sourceItems[sourceIndex];
       const copy = cloneEyeItems([source])[0];
       if (!copy) continue;
-      const rank = sourceOrder.indexOf(sourceIndex);
-      const targetIndex = targetOrder[rank];
-      if (targetIndex === undefined) {
-        if (!nextItems.some((existing) => sameEyeItem(existing, copy))) nextItems.push(copy);
-      } else {
-        nextItems[targetIndex] = copy;
+      const from = eyeGeometry(copy);
+      let best = null;
+      if (from) for (const index of available) {
+        const to = eyeGeometry(nextItems[index]);
+        if (!to) continue;
+        // Opposite eyes can be the only objects in their frames. Match by
+        // image position, not by rank, or one eye erases the other.
+        const dx = Math.abs(from.x - to.x) / Math.max(from.width, to.width);
+        const dy = Math.abs(from.y - to.y) / Math.max(from.height, to.height);
+        const score = dx * dx + dy * dy;
+        const belongsToAnotherEye = context.sourceItems.some((other, otherIndex) => {
+          if (otherIndex === sourceIndex) return false;
+          const candidate = eyeGeometry(other);
+          if (!candidate) return false;
+          const otherDx = Math.abs(candidate.x - to.x) / Math.max(candidate.width, to.width);
+          const otherDy = Math.abs(candidate.y - to.y) / Math.max(candidate.height, to.height);
+          return otherDx * otherDx + otherDy * otherDy < score;
+        });
+        if (belongsToAnotherEye) continue;
+        if (dx <= 1.25 && dy <= 2 && (!best || score < best.score)) best = { index, score };
       }
+      if (best) {
+        nextItems[best.index] = copy;
+        available.delete(best.index);
+      } else if (!nextItems.some((existing) => sameEyeItem(existing, copy))) nextItems.push(copy);
     }
     return nextItems;
   }

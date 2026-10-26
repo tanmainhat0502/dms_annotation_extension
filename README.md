@@ -2,7 +2,7 @@
 
 A Chrome extension for faster annotation in **DMS Labeling**. Group frames by clip, edit labels with keyboard shortcuts, and repeat changes across multiple frames.
 
-**Version 1.6.47 · English**
+**Version 1.6.48 · English**
 
 [Download the latest release](https://github.com/tanmainhat0502/dms_annotation_extension/releases/latest) · [Detailed usage guide](extension/README.md) · [Changelog](CHANGELOG.md)
 
@@ -136,7 +136,7 @@ Use these on the labeling canvas, outside text fields. On macOS, `Cmd+B`, `Cmd+C
 | `Z` | Undo the latest bbox edit or its whole bulk batch for every bbox label. |
 | Double-click an edge handle, then drag | All bbox labels: adjust the top, bottom, left, or right edge; use `Ctrl+B` to repeat its position across frames. |
 
-### Seatbelt and eye 15pt
+### Face 7pt, seatbelt and eye 15pt
 
 | Shortcut / gesture | Action |
 | --- | --- |
@@ -145,6 +145,9 @@ Use these on the labeling canvas, outside text fields. On macOS, `Cmd+B`, `Cmd+C
 | `R` or `Enter` / **Add** | Add the ready green SAM3 preview to the mask. |
 | `Shift+Enter` / **Subtract** | Remove the green SAM3 preview area from the mask. |
 | `Z` | Seatbelt: remove the last polygon point, or undo the latest mask edit on this frame. |
+| `C` / `Shift+C` | Face 7pt or seatbelt: copy from the nearest earlier nonempty frame / copy and advance. |
+| `Ctrl+C` / `Ctrl+V` | Face 7pt or seatbelt: copy the current points or mask and paste on another frame. |
+| `Z` | Face 7pt: undo point edits and copied points. `X` keeps its native Not found behavior. |
 | Drag inside the dashed eye box | Move all 15 eye points. |
 | `Ctrl` + drag inside the eye box | Rotate all 15 eye points. |
 | Drag an eye edge / corner handle | Resize the eye group; dragging an individual point edits only that point. |
@@ -155,6 +158,8 @@ Use these on the labeling canvas, outside text fields. On macOS, `Cmd+B`, `Cmd+C
 | `Ctrl+C` / `Ctrl+V` | Eye 15pt: copy all current eye groups to the clipboard / replace the destination frame's groups. |
 | `Z` | Eye 15pt: undo the latest group or point edit, including create, delete, copy and drag. |
 | `Alt+C` | Eye 15pt: toggle the selected group's closed-eye state; the **Closed eye** checkbox also works. |
+
+When using **Ctrl+B → Selected eye only → Replace matching eyes and keep the others**, eye groups are matched by position. If only the opposite eye exists in the target frame, the copied eye is added and the existing eye stays.
 
 ## Updates
 
@@ -178,7 +183,7 @@ Search, grouping, and label visibility change only the interface. Annotation edi
 
 | Path | Contents |
 | --- | --- |
-| `extension/` | Extension source (`core.js`, `styles.js`, `sidebar.js`, `bbox-warn.js`, `bbox-filter.js`, `bbox-tools.js`, `seatbelt-eye.js`, `bulk-dialogs.js`, `content.js`, `preload.js`, `popup.js`); load this folder in Chrome. |
+| `extension/` | Extension source (`core.js`, `styles.js`, `sidebar.js`, `bbox-warn.js`, `bbox-filter.js`, `bbox-tools.js`, `seatbelt-eye.js`, `eye-shortcuts.js`, `face-shortcuts.js`, `seatbelt-shortcuts.js`, `bulk-dialogs.js`, `content.js`, `preload.js`, `popup.js`); load this folder in Chrome. |
 | `docs/images/` | Installation screenshots used above. |
 | `dist/` | Versioned release ZIPs. |
 | `native-updater/` | Windows and macOS updater source. |

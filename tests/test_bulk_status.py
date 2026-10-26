@@ -147,6 +147,40 @@ async def test_g_label_actions(browser):
     print('PASS: G-to-current copies bbox, landmark and seatbelt labels to the intervening frames, excluding the source')
 
 
+async def test_eye_selected_merge_keeps_opposite_eye(browser):
+    page, server, errors = await setup(browser)
+    label_posts = []
+
+    async def save_label(route):
+        label_posts.append(route.request.post_data_json)
+        await route.fulfill(body='{}', content_type='application/json')
+
+    await page.route('**/api/label_edit', save_label)
+    await page.evaluate("""()=>{
+      S.labelSel='eye_lmk';
+      for(const item of Object.values(S.review))item.labels=['eye_lmk'];
+      const eye=x=>({pts:Array.from({length:15},(_,i)=>[x+i,40+i])});
+      S.ledits[rvKey(228)]={eye_lmk:[eye(30),eye(230)]};
+      S.ledits[rvKey(229)]={eye_lmk:[eye(230)]};
+      S.fstat[rvKey(228)]={eye_lmk:{s:'wip'}};
+      S.fstat[rvKey(229)]={eye_lmk:{s:'wip'}};
+      window.LM={n:0};
+      buildSeq();renderLabList();show(228);
+    }""")
+    await settle(page)
+    await open_bulk(page, 'label')
+    assert await page.locator(DIALOG + ' input[name="nl-eye-scope"][value="selected"]').is_checked()
+    assert await page.locator(DIALOG + ' input[name="nl-eye-write"][value="merge"]').is_checked()
+    await page.locator(DIALOG + ' .nl-count').fill('1')
+    await page.locator(DIALOG + ' .nl-apply').click()
+    await page.wait_for_selector(DIALOG, state='hidden')
+    assert len(label_posts) == 1 and label_posts[0]['i'] == 229
+    assert sorted(item['pts'][0][0] for item in label_posts[0]['items']) == [30, 230], label_posts
+    assert not server.posts and not errors, errors
+    await page.close()
+    print('PASS: Ctrl+B selected-eye merge adds a missing left eye and preserves the existing right eye')
+
+
 async def test_g_retry_and_other_direction(browser):
     page, server, errors = await setup(browser)
     await set_g(page, 225)
@@ -395,6 +429,7 @@ async def main():
             await test_marks(browser)
             await test_g_range(browser)
             await test_g_label_actions(browser)
+            await test_eye_selected_merge_keeps_opposite_eye(browser)
             await test_g_retry_and_other_direction(browser)
             await test_failure_and_scope(browser)
             await test_label_action_isolation(browser)
