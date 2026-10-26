@@ -80,19 +80,31 @@
       round(top + y * (bottom - top))]);
   }
 
-  function drawFaceCreatePreview() {
-    const draft = state.faceCreateDraft;
-    if (!draft || !faceCreateStillHere() || typeof ctx === "undefined") return;
-    const [left, top, right, bottom] = faceCreateBounds(draft);
-    const scale = view.width / draft.start.width;
-    const unit = typeof pxK === "function" ? pxK() : 1;
-    const points = faceCreatePoints([left, top, right, bottom]);
-    ctx.save();
-    ctx.setLineDash([6 * unit, 4 * unit]);
-    ctx.strokeStyle = "#ffea00";
-    ctx.lineWidth = 1.5 * unit;
-    ctx.strokeRect(left * scale, top * scale, (right - left) * scale, (bottom - top) * scale);
-    ctx.setLineDash([]);
+  // Three landmarks define the scale and tilt: between the eyes, nose tip,
+  // then mouth center. The clicked nose tip stays exact; the other six points
+  // are an initial symmetric estimate that can be dragged independently.
+  function faceCreateFromAnchors(eyeCenter, noseTip, mouthCenter) {
+    const dx = mouthCenter[0] - eyeCenter[0];
+    const dy = mouthCenter[1] - eyeCenter[1];
+    const length = Math.hypot(dx, dy);
+    const rect = view.getBoundingClientRect();
+    if (!rect.width || length * rect.width / S.sess.src_w < 24) return null;
+    const down = [dx / length, dy / length];
+    const right = dy >= 0 ? [down[1], -down[0]] : [-down[1], down[0]];
+    const width = S.sess.src_w, height = S.sess.src_h;
+    const place = (base, across, along) => [
+      Math.round(Math.max(0, Math.min(width, base[0] + length * (across * right[0] + along * down[0]))) * 10) / 10,
+      Math.round(Math.max(0, Math.min(height, base[1] + length * (across * right[1] + along * down[1]))) * 10) / 10
+    ];
+    return [
+      place(eyeCenter, -0.60, 0), place(eyeCenter, -0.27, 0.02),
+      place(eyeCenter, 0.27, 0.02), place(eyeCenter, 0.60, 0),
+      place(mouthCenter, -0.35, -0.08), place(mouthCenter, 0.35, -0.08),
+      place(noseTip, 0, 0)
+    ];
+  }
+
+  function drawFaceCreatePoints(points, scale, unit) {
     ctx.font = `700 ${11 * unit}px Consolas, monospace`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -110,27 +122,85 @@
       ctx.fillStyle = FACE_COLORS[index];
       ctx.fillText(String(index), px, py + 11 * unit);
     });
+  }
+
+  function drawFaceCreatePreview() {
+    const draft = state.faceCreateDraft;
+    if (!faceCreateStillHere() || typeof ctx === "undefined") return;
+    const scale = view.width / S.sess.src_w;
+    const unit = typeof pxK === "function" ? pxK() : 1;
+    ctx.save();
+    if (state.faceCreateMode === "box" && draft) {
+      const [left, top, right, bottom] = faceCreateBounds(draft);
+      ctx.setLineDash([6 * unit, 4 * unit]);
+      ctx.strokeStyle = "#ffea00";
+      ctx.lineWidth = 1.5 * unit;
+      ctx.strokeRect(left * scale, top * scale, (right - left) * scale, (bottom - top) * scale);
+      ctx.setLineDash([]);
+      drawFaceCreatePoints(faceCreatePoints([left, top, right, bottom]), scale, unit);
+    } else if (state.faceCreateMode === "anchors") {
+      const anchors = state.faceCreateAnchors;
+      if (anchors.length === 2 && state.faceCreatePointer) {
+        const points = faceCreateFromAnchors(anchors[0], anchors[1], state.faceCreatePointer);
+        if (points) drawFaceCreatePoints(points, scale, unit);
+      }
+      anchors.forEach(([x, y], index) => {
+        const px = x * scale, py = y * scale;
+        ctx.beginPath();
+        ctx.arc(px, py, 7 * unit, 0, Math.PI * 2);
+        ctx.strokeStyle = "#ffea00";
+        ctx.lineWidth = 2 * unit;
+        ctx.stroke();
+        ctx.fillStyle = "#ffea00";
+        ctx.font = `700 ${12 * unit}px Consolas, monospace`;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(String(index + 1), px + 9 * unit, py);
+      });
+    }
     ctx.restore();
   }
 
+  function commitFaceCreate(points) {
+    const before = faceSnapshot();
+    const empty = ED.items.findIndex((item) => item.pts?.length === 7 && item.pts.every((point) => !point));
+    if (empty >= 0) {
+      ED.items[empty].pts = points;
+      LM.n = empty;
+    } else {
+      ED.items.push({ pts: points });
+      LM.n = ED.items.length - 1;
+    }
+    LM.k = 0;
+    LM.selSet?.clear();
+    LM.sig = null;
+    rememberFaceUndo(before);
+    cancelFaceCreate(false);
+    saveCurrentFaceEdit();
+    notify("Created face 7pt · drag points to refine · Z to undo");
+  }
+
   function cancelFaceCreate(repaint = true) {
-    state.faceCreateMode = false;
+    state.faceCreateMode = null;
     state.faceCreateDraft = null;
     state.faceCreateScope = null;
+    state.faceCreateAnchors = [];
+    state.faceCreatePointer = null;
     const canvas = document.getElementById("view");
     if (canvas) canvas.style.cursor = "";
     if (repaint && typeof edRepaint === "function") edRepaint();
   }
 
-  function setFaceCreateMode() {
+  function setFaceCreateMode(mode = "anchors") {
     if (state.faceCreateMode && !faceCreateStillHere()) cancelFaceCreate(false);
-    if (state.faceCreateMode) {
+    if (state.faceCreateMode === mode) {
       cancelFaceCreate();
       notify("Face 7pt creation cancelled");
       return;
     }
+    if (state.faceCreateMode) cancelFaceCreate(false);
     if (!faceShortcutReady()) return;
-    state.faceCreateMode = true;
+    state.faceCreateMode = mode;
     state.faceCreateScope = { ...currentLabelScope(), key: ED.key, g: Number(S.shownG) };
     LM.marq = null;
     LM.poly = [];
@@ -138,7 +208,9 @@
     LM.sig = null;
     view.style.cursor = "crosshair";
     if (typeof edRepaint === "function") edRepaint();
-    notify("Drag a box around the face to preview seven points · release to create · Esc to cancel");
+    notify(mode === "anchors"
+      ? "Face 7pt: 1/3 click between the eyes · then nose tip and mouth center · Esc cancels"
+      : "Drag a box around the face to preview seven points · release to create · Esc to cancel");
   }
 
   function onFaceCreateMouseDown(event) {
@@ -147,17 +219,49 @@
     const canvas = document.getElementById("view");
     const stage = document.getElementById("stage");
     if (event.target !== canvas && event.target !== stage) return;
-    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
     const start = faceCreatePoint(event);
     if (!start) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     if (typeof pause === "function") pause();
+    if (state.faceCreateMode === "anchors") {
+      const anchor = [start.x, start.y];
+      if (state.faceCreateAnchors.length === 2) {
+        const points = faceCreateFromAnchors(...state.faceCreateAnchors, anchor);
+        if (!points) {
+          notify("Mouth center is too close to the eyes · click farther down the face");
+          return;
+        }
+        commitFaceCreate(points);
+      } else {
+        state.faceCreateAnchors.push(anchor);
+        state.faceCreatePointer = null;
+        if (typeof edRepaint === "function") edRepaint();
+        notify(state.faceCreateAnchors.length === 1
+          ? "Face 7pt: 2/3 click the nose tip"
+          : "Face 7pt: 3/3 click the mouth center · move the pointer to preview");
+      }
+      return;
+    }
     state.faceCreateDraft = { start, end: start };
     canvas.style.cursor = "crosshair";
   }
 
   function onFaceCreateMouseMove(event) {
+    if (state.faceCreateMode === "anchors" &&
+        (event.target === view || event.target === document.getElementById("stage"))) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (!faceCreateStillHere()) { cancelFaceCreate(); return; }
+      const point = faceCreatePoint(event);
+      if (state.faceCreateAnchors.length === 2 && point) {
+        state.faceCreatePointer = [point.x, point.y];
+        if (typeof edRepaint === "function") edRepaint();
+      }
+      view.style.cursor = "crosshair";
+      return;
+    }
     const draft = state.faceCreateDraft;
     if (!draft) return;
     event.preventDefault();
@@ -188,23 +292,7 @@
       notify("Face box too small · drag a larger area, or press Esc to cancel");
       return;
     }
-    const before = faceSnapshot();
-    const points = faceCreatePoints(bounds);
-    const empty = ED.items.findIndex((item) => item.pts?.length === 7 && item.pts.every((point) => !point));
-    if (empty >= 0) {
-      ED.items[empty].pts = points;
-      LM.n = empty;
-    } else {
-      ED.items.push({ pts: points });
-      LM.n = ED.items.length - 1;
-    }
-    LM.k = 0;
-    LM.selSet?.clear();
-    LM.sig = null;
-    rememberFaceUndo(before);
-    cancelFaceCreate(false);
-    saveCurrentFaceEdit();
-    notify("Created face 7pt · drag points to refine · Z to undo");
+    commitFaceCreate(faceCreatePoints(bounds));
   }
 
   function ensureFaceShortcutTracking() {
@@ -357,9 +445,9 @@
       cancelFaceCreate();
       return true;
     }
-    if (noModifiers && !event.shiftKey && event.code === "KeyN") {
+    if (noModifiers && event.code === "KeyN") {
       consume(event);
-      if (!event.repeat) setFaceCreateMode();
+      if (!event.repeat) setFaceCreateMode(event.shiftKey ? "box" : "anchors");
       return true;
     }
     if (noModifiers && !event.shiftKey && ["KeyX", "Delete", "Backspace"].includes(event.code)) {

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.51 - 2026-10-26
+
+- Face 7pt `N` now takes three clicks: between the eyes, nose tip, and mouth center. It previews the inferred seven points after the second click and saves them on the third. The nose tip remains on its clicked position; eye and mouth corners follow the anchor scale and tilt.
+- Keep the previous drag-to-create rectangle under `Shift+N`. Both methods retain `Esc` cancellation, `Z` undo, and existing-group preservation.
+- Extend the browser regression for three-click preview, generated coordinates, cancellation, and the retained rectangle gesture.
+
 ## 1.6.50 - 2026-10-26
 
 - Recalibrate the face 7pt `N`-drag preview for a rectangle drawn from eyebrow level to the chin. Eyes now start near the top of that rectangle and span the visible eye corners; the nose sits above the mouth. Preview and saved coordinates use the same template.

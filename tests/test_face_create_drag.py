@@ -1,4 +1,4 @@
-"""Face 7pt N-drag previews and commits seven editable landmarks."""
+"""Face 7pt N-click anchors and Shift+N drag create editable landmarks."""
 
 from _ext import read_organizer_script
 from test_landmark_mask_shortcuts import HTML as FACE_HTML
@@ -33,6 +33,29 @@ def main():
 
         page.evaluate('faceReset();show(1);ED.items=[{pts:Array(7).fill(null)}]')
         page.keyboard.press('n')
+        page.locator('#view').click(position={'x': 200, 'y': 40})
+        page.locator('#view').click(position={'x': 200, 'y': 95})
+        page.mouse.move(rect['x'] + 200, rect['y'] + 160)
+        preview = page.evaluate("""()=>({anchors:window.__notaOrganizerV1.state.faceCreateAnchors.length,
+          saves:window.saves.length, point:ctx.getImageData(128,40,1,1).data[3]})""")
+        assert preview['anchors'] == 2 and preview['saves'] == 0 and preview['point'] > 0, preview
+        page.locator('#view').click(position={'x': 200, 'y': 160})
+        expected = [[128, 40], [167.6, 42.4], [232.4, 42.4], [272, 40],
+                    [158, 150.4], [242, 150.4], [200, 95]]
+        assert page.evaluate('ED.items[0].pts') == expected
+        assert page.evaluate('window.saves.length') == 1
+        assert page.evaluate('window.__notaOrganizerV1.state.faceCreateMode') is None
+        page.keyboard.press('z')
+        assert page.evaluate('ED.items[0].pts') == [None] * 7
+
+        page.keyboard.press('n')
+        page.locator('#view').click(position={'x': 200, 'y': 40})
+        page.keyboard.press('Escape')
+        assert page.evaluate('window.saves.length') == 2
+        assert page.evaluate('window.__notaOrganizerV1.state.faceCreateMode') is None
+
+        page.evaluate('faceReset();show(1);ED.items=[{pts:Array(7).fill(null)}]')
+        page.keyboard.press('Shift+n')
         drag((40, 10), (360, 190), release=False)
         during = page.evaluate("""()=>({draft:!!window.__notaOrganizerV1.state.faceCreateDraft,
           points:ED.items[0].pts,saves:window.saves.length,
@@ -47,32 +70,32 @@ def main():
                                      [328, 53.2], [148.8, 152.2], [257.6, 152.2],
                                      [200, 125.2]], created
         assert page.evaluate('window.saves.length') == 1
-        assert page.evaluate('window.__notaOrganizerV1.state.faceCreateMode') is False
+        assert page.evaluate('window.__notaOrganizerV1.state.faceCreateMode') is None
         page.keyboard.press('z')
         assert page.evaluate('ED.items[0].pts') == [None] * 7
 
-        page.keyboard.press('n')
+        page.keyboard.press('Shift+n')
         drag((30, 20), (300, 180), release=False)
         page.keyboard.press('Escape')
         page.mouse.up()
         assert page.evaluate('ED.items[0].pts') == [None] * 7
-        assert page.evaluate('window.__notaOrganizerV1.state.faceCreateMode') is False
+        assert page.evaluate('window.__notaOrganizerV1.state.faceCreateMode') is None
 
-        page.keyboard.press('n')
+        page.keyboard.press('Shift+n')
         drag((50, 30), (250, 180), release=False)
         page.evaluate('show(2)')
         page.mouse.up()
         assert page.evaluate('ED.items[0].pts[0][0]') == 100
-        assert page.evaluate('window.__notaOrganizerV1.state.faceCreateMode') is False
+        assert page.evaluate('window.__notaOrganizerV1.state.faceCreateMode') is None
 
-        page.keyboard.press('n')
+        page.keyboard.press('Shift+n')
         page.evaluate('show(1)')
-        page.keyboard.press('n')
+        page.keyboard.press('Shift+n')
         assert page.evaluate('window.__notaOrganizerV1.state.faceCreateScope.g') == 1
         page.keyboard.press('Escape')
         page.evaluate('show(2)')
 
-        page.keyboard.press('n')
+        page.keyboard.press('Shift+n')
         drag((30, 20), (300, 180))
         assert len(page.evaluate('ED.items')) == 2, 'A new face must not replace existing points'
         page.keyboard.press('z')
@@ -80,7 +103,7 @@ def main():
         assert page.evaluate('ED.items[0].pts[0][0]') == 100
         assert not errors, errors
         browser.close()
-        print('PASS: N-drag preview, commit, Z, Esc, stale frame and existing face safety')
+        print('PASS: N three-anchor preview/commit and Shift+N drag, Z, Esc, stale frame safety')
 
 
 if __name__ == '__main__':

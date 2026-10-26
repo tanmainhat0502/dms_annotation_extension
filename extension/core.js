@@ -6,7 +6,7 @@
   const bboxCountForFrame = (...args) => NL.bboxCountForFrame(...args);
   const scheduleBboxFilterRefresh = (...args) => NL.scheduleBboxFilterRefresh(...args);
 
-  const VERSION = "1.6.50";
+  const VERSION = "1.6.51";
 
   const ROOT_ID = "nota-labeling-organizer-v1";
 
@@ -176,9 +176,11 @@
     faceUndoInstalled: false,
     faceClipboard: null,
     faceCopyRequest: null,
-    faceCreateMode: false,
+    faceCreateMode: null,
     faceCreateScope: null,
     faceCreateDraft: null,
+    faceCreateAnchors: [],
+    faceCreatePointer: null,
     seatbeltClipboard: null,
     seatbeltCopyRequest: null,
     bboxCopyRequest: null,
