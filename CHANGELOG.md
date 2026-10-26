@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.53 - 2026-10-26
+
+- Eye 15pt `Ctrl+C` now copies only the selected eye. `Ctrl+V` updates its matching eye on the target frame or adds it if missing, preserving the other eye groups. `Z` restores the target frame.
+- Add browser regressions for left/right selection, targets with both or only the opposite eye, empty targets, and undo.
+
 ## 1.6.52 - 2026-10-26
 
 - Stop a blank click in face 7pt or eye 15pt from starting the native dashed polygon selection. A blank click still deselects points, while dragging an empty area still selects points with a rectangle.

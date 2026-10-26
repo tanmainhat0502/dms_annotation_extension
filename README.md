@@ -2,7 +2,7 @@
 
 A Chrome extension for faster annotation in **DMS Labeling**. Group frames by clip, edit labels with keyboard shortcuts, and repeat changes across multiple frames.
 
-**Version 1.6.52 · English**
+**Version 1.6.53 · English**
 
 [Download the latest release](https://github.com/tanmainhat0502/dms_annotation_extension/releases/latest) · [Detailed usage guide](extension/README.md) · [Changelog](CHANGELOG.md)
 
@@ -157,7 +157,7 @@ Use these on the labeling canvas, outside text fields. On macOS, `Cmd+B`, `Cmd+C
 | `R` / `Delete` / `Backspace` | Eye 15pt: delete the selected eye. `X` deletes all; `Shift+X` also advances. |
 | `1` / `2` | Eye 15pt: delete the leftmost / rightmost eye. |
 | `C` / `Shift+C` | Eye 15pt: copy all eye groups from the nearest earlier nonempty frame / copy and advance. |
-| `Ctrl+C` / `Ctrl+V` | Eye 15pt: copy all current eye groups to the clipboard / replace the destination frame's groups. |
+| `Ctrl+C` / `Ctrl+V` | Eye 15pt: copy the selected eye / replace its matching eye in another frame while keeping the other eye. Use `C` to copy all eyes from the previous frame. |
 | `Z` | Eye 15pt: undo the latest group or point edit, including create, delete, copy and drag. |
 | `Alt+C` | Eye 15pt: toggle the selected group's closed-eye state; the **Closed eye** checkbox also works. |
 

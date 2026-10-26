@@ -4,7 +4,7 @@
   const NL = window.__notaOrganizerV1 = window.__notaOrganizerV1 || {};
   const {
     anyBulkDialogOpen, cloneEyeItems, currentLabelScope, eyeLandmarkActive,
-    getFrameEyeItems, navigateOrganizedFrames, notify, refreshStatusControls,
+    getFrameEyeItems, mergeEyeLandmarks, navigateOrganizedFrames, notify, refreshStatusControls,
     saveFrameEyeItems, sessionLabelFrames, state
   } = NL;
 
@@ -154,8 +154,15 @@
 
   function copyEyeToClipboard() {
     if (!eyeShortcutReady()) return;
-    state.eyeClipboard = { ...currentLabelScope(), items: cloneEyeItems(ED.items) };
-    notify(`Copied ${ED.items.length} eye 15pt groups · switch frames and press Ctrl+V`);
+    const sourceItems = cloneEyeItems(ED.items);
+    const selected = Number.isInteger(LM.n) && LM.n >= 0 && LM.n < sourceItems.length ? LM.n : -1;
+    if (selected < 0) {
+      state.eyeClipboard = null;
+      notify("Select an eye 15pt group before copying");
+      return;
+    }
+    state.eyeClipboard = { ...currentLabelScope(), sourceItems, selected };
+    notify("Copied the selected eye 15pt group · switch frames and press Ctrl+V");
   }
 
   function pasteEyeFromClipboard() {
@@ -165,7 +172,11 @@
       notify("The clipboard has no eye 15pt groups for this session");
       return;
     }
-    replaceCurrentEyeItems(clipboard.items, `Pasted ${clipboard.items.length} eye 15pt groups · Z to undo`);
+    const sourceItems = clipboard.sourceItems;
+    if (!Array.isArray(sourceItems) || !sourceItems[clipboard.selected]) return;
+    const next = mergeEyeLandmarks(ED.items, [sourceItems[clipboard.selected]],
+      { sourceItems, selected: [clipboard.selected] }, "selected");
+    replaceCurrentEyeItems(next, "Pasted the selected eye 15pt group · kept other eyes · Z to undo");
   }
 
   async function undoEye() {

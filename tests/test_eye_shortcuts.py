@@ -114,6 +114,51 @@ def main():
         assert items() == []
         print('PASS: C skips empty frames; Alt+C toggles closed eyes; Ctrl+C/V and Z copy/undo')
 
+        page.evaluate("""()=>{
+          reset(2,[one(40),one(240)]);
+          S.ledits['segment:3']={eye_lmk:[one(43),one(245)]};
+          LM.n=0;
+        }""")
+        page.keyboard.press('Control+c')
+        assert page.evaluate('window.__notaOrganizerV1.state.eyeClipboard.selected') == 0
+        page.evaluate('show(3)')
+        page.keyboard.press('Control+v')
+        assert [eye['pts'][0][0] for eye in items()] == [40, 245], 'Left paste must keep right eye'
+        page.keyboard.press('z')
+        assert [eye['pts'][0][0] for eye in items()] == [43, 245], 'Undo must restore both eyes'
+
+        page.evaluate("""()=>{
+          reset(2,[one(40),one(240)]);
+          S.ledits['segment:3']={eye_lmk:[one(43),one(245)]};
+          LM.n=1;
+        }""")
+        page.keyboard.press('Control+c')
+        page.evaluate('show(3)')
+        page.keyboard.press('Control+v')
+        assert [eye['pts'][0][0] for eye in items()] == [43, 240], 'Right paste must keep left eye'
+
+        page.evaluate("""()=>{
+          reset(2,[one(40),one(240)]);
+          S.ledits['segment:3']={eye_lmk:[one(245)]};
+          LM.n=0;
+        }""")
+        page.keyboard.press('Control+c')
+        page.evaluate('show(3)')
+        page.keyboard.press('Control+v')
+        assert [eye['pts'][0][0] for eye in items()] == [245, 40], 'Missing left eye is added without deleting right'
+        page.keyboard.press('Control+v')
+        assert [eye['pts'][0][0] for eye in items()] == [245, 40], 'Repeated paste must not duplicate the eye'
+
+        page.evaluate('reset(2,[one(40),one(240)]);LM.n=1')
+        page.keyboard.press('Control+c')
+        page.evaluate('show(3)')
+        page.keyboard.press('Control+v')
+        assert [eye['pts'][0][0] for eye in items()] == [240], 'Empty target receives only selected eye'
+        page.evaluate('reset(2,[])')
+        page.keyboard.press('Control+c')
+        assert page.evaluate('window.__notaOrganizerV1.state.eyeClipboard') is None
+        print('PASS: Ctrl+C/V copies only the selected eye, keeps the other, and supports undo')
+
         result = page.evaluate("""()=>{
           const merge=window.__notaOrganizerV1.mergeEyeLandmarks;
           const left=one(40), right=one(240), updatedLeft=one(45);

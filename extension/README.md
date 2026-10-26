@@ -1,6 +1,6 @@
 # NOTA Labeling Organizer — usage guide
 
-**Version 1.6.52 · English**
+**Version 1.6.53 · English**
 
 For installation screenshots and the complete shortcut tables, see the [GitHub README](https://github.com/tanmainhat0502/dms_annotation_extension#readme).
 
@@ -139,7 +139,7 @@ The dashed SAM3 box is a processing region, separate from the mask. It is rememb
 
 ## Eye 15pt
 
-Press `N`, then click the center of an eye in the image to create a default 15-point group. Press `Esc` to cancel add mode. `R`, `Delete`, or `Backspace` deletes the selected eye; `X` deletes all eyes, and `1` / `2` delete the leftmost / rightmost eye. `Shift+X` deletes all and advances to the next frame. `C` copies all eye groups from the nearest earlier frame with eye points (skipping empty frames); `Shift+C` also advances. `Ctrl+C` / `Ctrl+V` copy and paste all eye groups between frames. `Z` undoes the latest eye edit, including point moves and group transforms. `Alt+C` toggles the selected eye's closed state; the **Closed eye** checkbox remains available.
+Press `N`, then click the center of an eye in the image to create a default 15-point group. Press `Esc` to cancel add mode. `R`, `Delete`, or `Backspace` deletes the selected eye; `X` deletes all eyes, and `1` / `2` delete the leftmost / rightmost eye. `Shift+X` deletes all and advances to the next frame. `C` copies all eye groups from the nearest earlier frame with eye points (skipping empty frames); `Shift+C` also advances. `Ctrl+C` copies only the selected eye; `Ctrl+V` replaces its matching eye on another frame and keeps the other eyes. `Z` undoes the latest eye edit, including point moves and group transforms. `Alt+C` toggles the selected eye's closed state; the **Closed eye** checkbox remains available.
 
 Select an eye and press `Ctrl+B`. Choose **Selected eye only** or **All eyes in the current frame**, then choose whether to replace matching eyes and keep the others, or replace all target eyes. Matching uses the eye's image position; copying a left eye into a frame containing only the right eye adds the left eye and keeps the right.
 
