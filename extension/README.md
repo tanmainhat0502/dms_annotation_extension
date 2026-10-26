@@ -1,6 +1,6 @@
 # NOTA Labeling Organizer — usage guide
 
-**Version 1.6.44 · English**
+**Version 1.6.52 · English**
 
 For installation screenshots and the complete shortcut tables, see the [GitHub README](https://github.com/tanmainhat0502/dms_annotation_extension#readme).
 
@@ -144,6 +144,8 @@ Press `N`, then click the center of an eye in the image to create a default 15-p
 Select an eye and press `Ctrl+B`. Choose **Selected eye only** or **All eyes in the current frame**, then choose whether to replace matching eyes and keep the others, or replace all target eyes. Matching uses the eye's image position; copying a left eye into a frame containing only the right eye adds the left eye and keeps the right.
 
 Drag an empty area inside the dashed eye box to move all 15 points. Hold `Ctrl` while dragging to rotate; drag edge or corner handles to resize. Dragging a point edits only that point. `K` hides or shows the eye points without deleting them.
+
+Clicking an empty image area clears the point selection without starting a dashed polygon. Drag across empty space to select multiple points with a rectangle; this also applies to face 7pt.
 
 ## Face 7pt
 

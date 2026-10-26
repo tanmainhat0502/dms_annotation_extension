@@ -6,7 +6,7 @@
   const bboxCountForFrame = (...args) => NL.bboxCountForFrame(...args);
   const scheduleBboxFilterRefresh = (...args) => NL.scheduleBboxFilterRefresh(...args);
 
-  const VERSION = "1.6.51";
+  const VERSION = "1.6.52";
 
   const ROOT_ID = "nota-labeling-organizer-v1";
 
@@ -135,6 +135,7 @@
     committingPolygon: false,
     samAcceptHeld: false,
     pointerPerformanceInstalled: false,
+    landmarkBlankClickInstalled: false,
     pointerInsideView: false,
     pointerMoveEvent: false,
     pointerMagnifyFrame: 0,
@@ -532,6 +533,28 @@
     state.pointerPerformanceInstalled = true;
   }
 
+  function ensureLandmarkBlankClick() {
+    if (state.landmarkBlankClickInstalled || typeof lmkActive !== "function" ||
+        typeof LM === "undefined") return;
+    const canvas = document.getElementById("view");
+    if (!canvas) return;
+
+    // The native editor turns a click on empty canvas into the first point of
+    // a polygon selection. Stop that click before its window mouseup handler;
+    // keep longer drags for rectangular selection and point drags untouched.
+    window.addEventListener("mouseup", () => {
+      if (!lmkActive() || !LM.marq) return;
+      const m = LM.marq;
+      if (Math.abs(m.x1 - m.x0) >= 3 || Math.abs(m.y1 - m.y0) >= 3) return;
+      LM.marq = null;
+      LM.poly = [];
+      LM.selSet?.clear();
+      LM.sig = null;
+      if (typeof edRepaint === "function") edRepaint();
+    }, true);
+    state.landmarkBlankClickInstalled = true;
+  }
+
   function ensureZoomPerformance() {
     if (state.zoomPerformanceInstalled || typeof paint !== "function" || typeof VZ === "undefined") return;
     const stage = document.getElementById("stage");
@@ -868,6 +891,7 @@
     insertBeforeFrameName, clearEditorSelection, singleSelectedEditorIndex,
     drawCanvasPolygonOverlay, pointerGestureActive, pointerHoverSignature,
     useNativePointerCursor, schedulePointerMagnifier, ensurePointerPerformance,
+    ensureLandmarkBlankClick,
     ensureZoomPerformance, frameState, statusIcon, statusName, notify, requestJson, runQueue,
     updateFrameState, saveFrameState, loadAutoLabel, postFrameLabelEdit,
     readCurrentEditorOrSavedItems, readFrameAutoOrSavedItems, cloneGenericItems,

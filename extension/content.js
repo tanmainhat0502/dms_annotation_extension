@@ -11,7 +11,7 @@
     closeClipStatusMenu, closePartStatusMenu, commitBboxDeletePolygon, copyPreviousQuickBbox,
     copyQuickBboxToClipboard, deleteQuickBbox, ensureBboxEditing, ensureBulkDialog,
     ensureCurrentClipOpen, ensureEyeBulkDialog, ensureEyeGroupDragging, ensureEyePanelHint,
-    ensureEyeShortcutTracking, eyeLandmarkActive, handleEyeShortcut, deleteEye, undoEye,
+    ensureEyeShortcutTracking, ensureLandmarkBlankClick, eyeLandmarkActive, handleEyeShortcut, deleteEye, undoEye,
     ensureFaceShortcutTracking, faceLandmarkActive, faceShortcutReady, handleFaceShortcut,
     cancelFaceCreate, faceCreateStillHere, undoFace,
     handleSeatbeltShortcut,
@@ -221,6 +221,7 @@
     ensureLabelVisibility();
     ensureEyeShortcutTracking();
     ensureFaceShortcutTracking();
+    ensureLandmarkBlankClick();
     ensureEyeGroupDragging();
     ensureEyeTransformDrawing();
     ensureEyePanelHint();

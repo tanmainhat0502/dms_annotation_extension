@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.52 - 2026-10-26
+
+- Stop a blank click in face 7pt or eye 15pt from starting the native dashed polygon selection. A blank click still deselects points, while dragging an empty area still selects points with a rectangle.
+- Add browser coverage for eye and face blank clicks, deselection, and rectangular selection.
+
 ## 1.6.51 - 2026-10-26
 
 - Face 7pt `N` now takes three clicks: between the eyes, nose tip, and mouth center. It previews the inferred seven points after the second click and saves them on the third. The nose tip remains on its clicked position; eye and mouth corners follow the anchor scale and tilt.
