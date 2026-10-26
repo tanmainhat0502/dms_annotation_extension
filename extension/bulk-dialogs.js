@@ -317,6 +317,8 @@
         state.rangeStart !== start || !partStatusMatches(scope)) return;
     state.rangeStart = null;
     state.eyeGSource = null;
+    state.genericGSource = null;
+    state.seatbeltGSource = null;
     updateMarkedUI();
   }
 
@@ -603,9 +605,10 @@
     dialog.querySelector(".nl-item-selected-text").textContent = eyeMode
       ? "Selected eye only"
       : context.selectedMode === "clicked" ? "Selected box only" : "Newly added box only";
-    dialog.querySelector(".nl-item-all-text").textContent = eyeMode
-      ? context.gSource ? "All eyes in the G frame" : "All eyes in the current frame"
-      : boxMode ? "All boxes in the current frame" : "All face 7pt groups in the current frame";
+    dialog.querySelector(".nl-item-all-text").textContent = context.gSource
+      ? `All ${eyeMode ? "eyes" : boxMode ? "boxes" : "face 7pt groups"} in the G frame`
+      : eyeMode ? "All eyes in the current frame"
+        : boxMode ? "All boxes in the current frame" : "All face 7pt groups in the current frame";
     dialog.querySelector(".nl-write-label").hidden = !eyeMode || operationMode;
     dialog.querySelector(".nl-write-options").hidden = !eyeMode || operationMode;
     dialog.querySelector(".nl-item-merge-text").textContent = eyeMode ? "Replace matching eyes and keep the others" : "";
@@ -639,13 +642,35 @@
     const context = currentGenericClipContext() || emptyLabelBulkContext(S.labelSel);
     state.eyeBulkContext = context;
     const dialog = ensureEyeBulkDialog();
-    dialog.querySelector(`input[name="nl-eye-scope"][value="${context.selected.length ? "selected" : "all"}"]`).checked = true;
+    dialog.querySelector(`input[name="nl-eye-scope"][value="${context.gSource ? "all" : context.selected.length ? "selected" : "all"}"]`).checked = true;
     updateEyeBulkDialog();
     showBulkDialog(dialog);
   }
 
-  function currentClipContext() {
-    return activeClipBaseContext("seatbelt");
+  async function currentClipContext() {
+    const base = activeClipBaseContext("seatbelt");
+    if (!base) return null;
+    const marked = state.seatbeltGSource;
+    if (marked?.session !== S.sess || marked.generation !== S.gen ||
+        marked.label !== "seatbelt" || marked.g !== state.rangeStart) return base;
+    let currentMask = typeof BT !== "undefined" && BT.key === base.sourceKey && BT.mask?.length
+      ? BT.mask : null;
+    if (!currentMask?.some(Boolean)) currentMask = await getFrameMask(base.source, base.generation);
+    if (S.gen !== base.generation || Number(S.shownG) !== base.source) return null;
+    if (currentMask.some(Boolean)) return base;
+    const sourceMask = await marked.maskPromise;
+    if (S.gen !== base.generation || Number(S.shownG) !== base.source || !sourceMask?.some(Boolean)) return base;
+    const markedIndex = base.frames.indexOf(marked.g);
+    if (markedIndex < 0) return base;
+    return {
+      ...base,
+      source: marked.g,
+      sourceIndex: markedIndex,
+      sourceKey: typeof rvKey === "function" ? rvKey(marked.g) : "",
+      rangeEndIndex: base.sourceIndex,
+      gSource: marked.g !== base.source,
+      sourceMask: sourceMask.slice()
+    };
   }
 
   function ensureBulkDialog() {
@@ -668,7 +693,7 @@
         <span class="nl-label nl-scope-label nl-mask-only">Mask content to apply</span>
         <div class="nl-scope nl-mask-only">
           <label class="nl-patch-option"><input type="radio" name="nl-scope" value="patch"><span class="nl-patch-label">Latest polygon only</span></label>
-          <label class="nl-mask-option"><input type="radio" name="nl-scope" value="mask"> Entire mask from the current frame</label>
+          <label class="nl-mask-option"><input type="radio" name="nl-scope" value="mask"><span> Entire mask from the current frame</span></label>
         </div>
 
         <label class="nl-label nl-mask-only" for="nl-bulk-count">Number of target frames, or end</label>
@@ -750,13 +775,15 @@
     }
     dialog.querySelector(".nl-count").disabled = state.bulkDirection === "range";
 
-    const hasPatch = patchMatchesContext(context);
+    const hasPatch = !context.gSource && patchMatchesContext(context);
     const subtract = hasPatch && state.lastPatch.operation === "subtract";
     const samPatch = hasPatch && state.lastPatch.kind === "sam";
     const patchOption = dialog.querySelector(".nl-patch-option");
     patchOption.hidden = !hasPatch;
     dialog.querySelector(".nl-mask-option").hidden = subtract;
     dialog.querySelector('.nl-mask-option input').disabled = subtract;
+    dialog.querySelector('.nl-mask-option span').textContent = context.gSource
+      ? " Entire mask from the G frame" : " Entire mask from the current frame";
     dialog.querySelector(".nl-patch-label").textContent = samPatch
       ? (subtract ? "Latest removed mask area only (SAM3)" : "Latest added mask area only (SAM3)")
       : (subtract ? "Red polygon region to erase" : "Latest polygon only");
@@ -794,7 +821,7 @@
     dialog.querySelector(".nl-apply").disabled = Boolean(blocked || picked.error) || emptySamPatch || state.operationBusy;
   }
 
-  function openBulkDialog() {
+  async function openBulkDialog() {
     if (state.operationBusy || anyBulkDialogOpen()) return;
     if (S.labelSel === "eye_lmk") {
       openEyeBulkDialog();
@@ -804,11 +831,19 @@
       openGenericBulkDialog();
       return;
     }
-    const context = currentClipContext() || emptyLabelBulkContext(S.labelSel);
+    let context;
+    try {
+      context = await currentClipContext();
+    } catch (error) {
+      notify(`Could not load the seatbelt mask: ${error.message}`);
+      return;
+    }
+    if (state.operationBusy || anyBulkDialogOpen()) return;
+    context ||= emptyLabelBulkContext(S.labelSel);
     state.bulkMode = "mask";
     state.bulkContext = context;
     const dialog = ensureBulkDialog();
-    dialog.querySelector(`input[name="nl-scope"][value="${patchMatchesContext(context) ? "patch" : "mask"}"]`).checked = true;
+    dialog.querySelector(`input[name="nl-scope"][value="${!context.gSource && patchMatchesContext(context) ? "patch" : "mask"}"]`).checked = true;
     updateBulkDialog();
     showBulkDialog(dialog);
   }
@@ -986,11 +1021,11 @@
     try {
       let sourceMask;
       let operation = "add";
-      if (scope === "patch" && patchMatchesContext(context)) {
+      if (scope === "patch" && !context.gSource && patchMatchesContext(context)) {
         sourceMask = state.lastPatch.mask.slice();
         operation = state.lastPatch.operation;
       } else {
-        sourceMask = await getFrameMask(context.source, context.generation);
+        sourceMask = context.sourceMask?.slice() || await getFrameMask(context.source, context.generation);
       }
       let hasPixels = false;
       for (const value of sourceMask) if (value) { hasPixels = true; break; }

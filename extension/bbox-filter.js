@@ -127,6 +127,8 @@
       state.bboxMarkedFrames.clear();
       state.rangeStart = null;
       state.eyeGSource = null;
+      state.genericGSource = null;
+      state.seatbeltGSource = null;
       state.markedScope = currentLabelScope();
       state.bboxMarkedScope = state.markedScope;
     }
@@ -248,6 +250,8 @@
     if (!Number.isInteger(g) || !S.lseq?.includes(g)) return;
     state.rangeStart = state.rangeStart === g ? null : g;
     state.eyeGSource = null;
+    state.genericGSource = null;
+    state.seatbeltGSource = null;
     if (state.rangeStart !== null && S.labelSel === "eye_lmk") {
       let items = [];
       try {
@@ -260,6 +264,26 @@
         ...currentLabelScope(), g, items,
         selected: typeof LM !== "undefined" && Number.isInteger(LM.n) && LM.n >= 0 && LM.n < items.length
           ? [LM.n] : []
+      };
+    } else if (state.rangeStart !== null && NL.GENERIC_COPY_LABELS.has(S.labelSel)) {
+      const context = NL.currentGenericClipContext?.();
+      if (context) state.genericGSource = {
+        ...currentLabelScope(), g,
+        items: NL.cloneGenericItems(context.sourceItems).filter((item) =>
+          S.labelSel !== "face_lmk" || item.pts?.some(Boolean)),
+        selected: [...context.selected],
+        selectedMode: context.selectedMode,
+        selectedRank: context.selectedRank
+      };
+    } else if (state.rangeStart !== null && S.labelSel === "seatbelt") {
+      const generation = S.gen;
+      const key = typeof rvKey === "function" ? rvKey(g) : "";
+      const liveMask = typeof BT !== "undefined" && BT.key === key && BT.mask?.length
+        ? BT.mask.slice() : null;
+      state.seatbeltGSource = {
+        ...currentLabelScope(), g,
+        maskPromise: liveMask?.some(Boolean)
+          ? Promise.resolve(liveMask) : NL.getFrameMask(g, generation).catch(() => null)
       };
     }
     updateMarkedUI();

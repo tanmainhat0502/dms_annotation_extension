@@ -227,6 +227,54 @@ async def test_g_eye_source_when_current_is_empty(browser):
     print('PASS: eye 15pt G-source snapshot copies into an empty current frame and clears G')
 
 
+async def test_g_other_label_sources_when_current_is_empty(browser):
+    for label, start, end in (('body', 225, 228), ('nose', 225, 228),
+                              ('face_lmk', 225, 228), ('seatbelt', 225, 228),
+                              ('head', 228, 225)):
+        page, server, errors = await setup(browser)
+        label_posts = []
+
+        async def save_label(route):
+            label_posts.append(route.request.post_data_json)
+            await route.fulfill(body='{}', content_type='application/json')
+
+        await page.route('**/api/label_edit', save_label)
+        await page.evaluate("""({label,start,end})=>{
+          S.labelSel=label;S.sess.src_w=2;S.sess.src_h=2;S.ts=Array(600).fill(0);
+          for(const item of Object.values(S.review))item.labels=[label];
+          for(let g=225;g<=228;g++){
+            S.ledits[rvKey(g)]={[label]:g===start
+              ? label==='seatbelt' ? [{rle:{size:[2,2],counts:[1,2,1]}}]
+                : label==='face_lmk' ? [{pts:[[0,0],[1,0],[1,1],[0,1],[0,0],[1,1],[1,0]]}]
+                : [{box:[0,0,1,1]}]
+              : label==='face_lmk' && g===end ? [{pts:Array(7).fill(null)}] : []};
+            S.fstat[rvKey(g)]={[label]:{s:'wip'}};
+          }
+          buildSeq();renderLabList();show(start);
+        }""", {'label': label, 'start': start, 'end': end})
+        await settle(page)
+        await set_g(page, start)
+        await page.evaluate('g=>show(g)', end)
+        await open_bulk(page, 'label')
+        context_name = 'bulkContext' if label == 'seatbelt' else 'eyeBulkContext'
+        context = await page.evaluate('name=>{const c=window.__notaOrganizerV1.state[name];return {source:c.source,gSource:c.gSource,sourceCount:c.sourceItems?.length,maskCount:c.sourceMask?.filter(Boolean).length}}', context_name)
+        assert context['source'] == start and context['gSource'], (label, context)
+        if label == 'seatbelt':
+            assert context['maskCount'] == 2, context
+        else:
+            assert context['sourceCount'] == 1, context
+        assert await page.locator(DIALOG + ' .nl-apply').is_enabled(), label
+        assert '3 ' in await page.locator(DIALOG + ' .nl-label-panel .nl-preview').inner_text(), label
+        await page.locator(DIALOG + ' .nl-apply').click()
+        await page.wait_for_selector(DIALOG, state='hidden')
+        assert {post['i'] for post in label_posts} == ({225, 226, 227, 228} - {start}), (label, label_posts)
+        assert all(post['items'] for post in label_posts), (label, label_posts)
+        assert not await page.locator('#nl-marked-frames .nl-range-start-badge').is_visible(), label
+        assert not server.posts and not errors, (label, errors)
+        await page.close()
+    print('PASS: bbox, face 7pt and seatbelt copy from the G frame into an empty current frame')
+
+
 async def test_g_retry_and_other_direction(browser):
     page, server, errors = await setup(browser)
     await set_g(page, 225)
@@ -477,6 +525,7 @@ async def main():
             await test_g_label_actions(browser)
             await test_eye_selected_merge_keeps_opposite_eye(browser)
             await test_g_eye_source_when_current_is_empty(browser)
+            await test_g_other_label_sources_when_current_is_empty(browser)
             await test_g_retry_and_other_direction(browser)
             await test_failure_and_scope(browser)
             await test_label_action_isolation(browser)

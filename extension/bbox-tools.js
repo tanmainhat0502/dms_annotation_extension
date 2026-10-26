@@ -141,7 +141,7 @@
     const base = activeClipBaseContext(label);
     if (!base) return null;
     const { source } = base;
-    const sourceItems = currentGenericItems(label);
+    let sourceItems = currentGenericItems(label);
     let selected = [];
     let selectedMode = "";
     let selectedRank = -1;
@@ -165,6 +165,27 @@
         }
       }
     } catch (_) {}
+    const marked = state.genericGSource;
+    const currentHasItems = sourceItems.some((item) => label !== "face_lmk" || item.pts?.some(Boolean));
+    if (!currentHasItems && marked?.session === S.sess && marked.generation === S.gen &&
+        marked.label === label && marked.g === state.rangeStart && marked.items?.length) {
+      const markedIndex = base.frames.indexOf(marked.g);
+      if (markedIndex >= 0) return {
+        ...base,
+        source: marked.g,
+        sourceIndex: markedIndex,
+        sourceKey: typeof rvKey === "function" ? rvKey(marked.g) : "",
+        rangeEndIndex: base.sourceIndex,
+        gSource: marked.g !== base.source,
+        label,
+        labelName: genericLabelName(label),
+        sourceItems: cloneGenericItems(marked.items),
+        selected: marked.selected.filter((index) => index >= 0 && index < marked.items.length),
+        selectedMode: marked.selectedMode,
+        selectedRank: marked.selectedRank,
+        operation: null
+      };
+    }
     return {
       ...base,
       label,

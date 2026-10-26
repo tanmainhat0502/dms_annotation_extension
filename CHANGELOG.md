@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.56 - 2026-10-26
+
+- Extend G-source copying to bounding boxes, face 7pt, and seatbelt masks. When the current frame is empty, Ctrl+B uses the annotation captured on the G frame and includes the current frame in the range.
+- Keep current-frame-source behavior when it has annotations, and clear G only after a successful range action. Add browser coverage for empty bbox, face 7pt (including an unplaced group), and seatbelt targets.
+
 ## 1.6.55 - 2026-10-26
 
 - Fix eye 15pt G-range copying when the marked G frame contains eyes but the current frame is empty. Ctrl+B now uses the G frame's captured eyes as the source and copies through the current frame, without changing existing current-frame-source behavior.
