@@ -41,6 +41,39 @@
     if (eyeShortcutReady()) state.eyeUndoPending = eyeSnapshot();
   }
 
+  function onEyeLidDoubleClick(event) {
+    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey ||
+        event.target !== document.getElementById("view") || !eyeShortcutReady() ||
+        S.showAl === false || LM.addEye || LM.poly?.length ||
+        typeof lmkHit !== "function") return;
+    const rect = view.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const hit = lmkHit([
+      (event.clientX - rect.left) * view.width / rect.width,
+      (event.clientY - rect.top) * view.height / rect.height
+    ]);
+    if (!hit || hit.k < 2 || hit.k > 13) return;
+    const next = cloneEyeItems(ED.items);
+    const eye = next[hit.n];
+    if (!eye || eye.pts.length !== 15) return;
+    const upper = hit.k <= 7;
+    const sourceStart = upper ? 2 : 8;
+    const targetStart = upper ? 8 : 2;
+    if (!eye.pts.slice(sourceStart, sourceStart + 6).every(Array.isArray)) return;
+    for (let offset = 0; offset < 6; offset++) {
+      eye.pts[targetStart + offset] = eye.pts[sourceStart + offset].slice();
+    }
+    eye.closed = true;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (replaceCurrentEyeItems(next, `Closed the eye along the ${upper ? "upper" : "lower"} lid · Z to undo`)) {
+      LM.n = hit.n;
+      LM.k = upper ? hit.k : hit.k - 6;
+      LM.sig = null;
+      if (typeof edRepaint === "function") edRepaint();
+    }
+  }
+
   function ensureEyeShortcutTracking() {
     if (state.eyeUndoInstalled || typeof lmkChanged !== "function") return;
     const nativeChanged = lmkChanged;
@@ -53,6 +86,7 @@
     window.addEventListener("mousedown", (event) => {
       if (event.button === 0 && event.target?.closest?.("#view, #lmkRef")) captureEyeUndo();
     }, true);
+    window.addEventListener("dblclick", onEyeLidDoubleClick, true);
     state.eyeUndoInstalled = true;
   }
 
@@ -259,7 +293,7 @@
   }
 
   Object.assign(NL, {
-    eyeShortcutReady, ensureEyeShortcutTracking, setEyeAddMode, deleteEye,
+    eyeShortcutReady, ensureEyeShortcutTracking, onEyeLidDoubleClick, setEyeAddMode, deleteEye,
     copyPreviousEye, copyEyeToClipboard, pasteEyeFromClipboard, undoEye, handleEyeShortcut
   });
 })();

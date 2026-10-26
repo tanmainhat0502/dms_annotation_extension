@@ -19,6 +19,11 @@ function rvKey(g){return 'segment:'+g;}
 function loc(g){return [0,g];}
 function lmkActive(){return S.mode==='label'&&S.labelSel==='eye_lmk'&&!locked&&S.lseq.includes(S.shownG);}
 function lmkCur(){return ED.items;}
+function lmkHit(p){let best=null;ED.items.forEach((it,n)=>it.pts.forEach((q,k)=>{
+  if(!q||(it.closed&&k>=8&&k<=13))return;
+  const d=Math.hypot(q[0]-p[0],q[1]-p[1]);
+  if(d<=5&&(!best||d<best.d))best={n,k,d};
+}));return best;}
 function edSave(){const items=JSON.parse(JSON.stringify(ED.items));S.ledits[ED.key]={eye_lmk:items};window.saves.push(items);}
 function edRepaint(){}
 function lsTouch(){}
@@ -36,6 +41,7 @@ function reset(g=2,items=[]){document.querySelectorAll('dialog[open]').forEach(e
   window.saves=[];window.nativeC=0;show(g);}
 view.addEventListener('mousedown',e=>{if(!lmkActive()||e.button!==0)return;
   if(LM.addEye||!ED.items.length){lmkAddEyeAt(e.offsetX,e.offsetY);return;}
+  const hit=lmkHit([e.offsetX,e.offsetY]);if(hit){LM.n=hit.n;LM.k=hit.k;}
   if(e.shiftKey){ED.items[LM.n].pts[0][0]+=5;lmkChanged();}
 });
 document.addEventListener('keydown',e=>{if(lmkActive()&&e.code==='KeyC'){
@@ -158,6 +164,41 @@ def main():
         page.keyboard.press('Control+c')
         assert page.evaluate('window.__notaOrganizerV1.state.eyeClipboard') is None
         print('PASS: Ctrl+C/V copies only the selected eye, keeps the other, and supports undo')
+
+        page.evaluate('reset(2,[one(50),one(220)])')
+        original = [{'pts': eye['pts']} for eye in items()]
+        page.locator('#view').dblclick(position={'x': 54, 'y': 54})  # upper lid point 4
+        assert items()[0]['closed'] is True and not items()[1].get('closed')
+        assert items()[0]['pts'][2:8] == original[0]['pts'][2:8]
+        assert items()[0]['pts'][8:14] == original[0]['pts'][2:8], 'Lower lid must follow upper lid'
+        assert page.evaluate('LM.n===0&&LM.k===4&&window.saves.length===1')
+        page.keyboard.press('z')
+        assert items() == original, 'Z must restore both lid shapes and open state'
+
+        page.locator('#view').dblclick(position={'x': 60, 'y': 60})  # lower lid point 10
+        assert items()[0]['closed'] is True
+        assert items()[0]['pts'][2:8] == original[0]['pts'][8:14], 'Upper lid must follow lower lid'
+        assert items()[0]['pts'][8:14] == original[0]['pts'][8:14]
+        assert page.evaluate('LM.n===0&&LM.k===4')
+        page.keyboard.press('z')
+        assert items() == original
+
+        page.locator('#view').dblclick(position={'x': 224, 'y': 54})
+        assert not items()[0].get('closed') and items()[1]['closed'], 'Only the clicked eye closes'
+        saved_count = page.evaluate('window.saves.length')
+        page.locator('#view').dblclick(position={'x': 224, 'y': 54})
+        assert page.evaluate('window.saves.length') == saved_count, 'Repeating a closed lid click must not save again'
+        page.evaluate('reset(2,[one(50)])')
+        page.locator('#view').dblclick(position={'x': 64, 'y': 64})  # pupil point 14
+        assert not items()[0].get('closed') and not page.evaluate('window.saves.length')
+        page.evaluate('locked=true')
+        page.locator('#view').dblclick(position={'x': 54, 'y': 54})
+        assert not items()[0].get('closed'), 'Done frames must remain locked'
+        page.evaluate('locked=false;S.showAl=false')
+        page.locator('#view').dblclick(position={'x': 54, 'y': 54})
+        assert not items()[0].get('closed'), 'Hidden landmarks must not react to double clicks'
+        page.evaluate('S.showAl=true')
+        print('PASS: double-click upper/lower lid closes the selected eye along that lid; Z, guards and no-op hold')
 
         result = page.evaluate("""()=>{
           const merge=window.__notaOrganizerV1.mergeEyeLandmarks;

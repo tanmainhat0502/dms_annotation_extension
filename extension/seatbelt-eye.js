@@ -237,7 +237,7 @@
         if (panel && !panel.querySelector(".nl-eye-group-hint")) {
           const hint = document.createElement("div");
           hint.className = "nl-eye-group-hint";
-          hint.innerHTML = "N: add eye · C: copy previous · R: delete selected · X: delete all · Z: undo<br>Alt+C: closed eye · Drag inside the box to move · Ctrl + drag to rotate<br>Drag an edge or corner handle to resize";
+          hint.innerHTML = "N: add eye · C: copy previous · R: delete selected · X: delete all · Z: undo<br>Double-click an upper/lower lid point to close along that lid · Alt+C: toggle closed eye<br>Drag inside the box to move · Ctrl + drag to rotate · Drag a handle to resize";
           panel.appendChild(hint);
         }
       }

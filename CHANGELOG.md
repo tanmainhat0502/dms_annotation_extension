@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.54 - 2026-10-26
+
+- Double-click an eye 15pt upper or lower eyelid point to close that eye along the clicked lid. The opposite lid's six points follow it; corners, pupil, and other eye groups are preserved. `Z` undoes the change.
+- Add browser coverage for both lid directions, eye selection, saving once, repeated clicks, undo, and locked frames.
+
 ## 1.6.53 - 2026-10-26
 
 - Eye 15pt `Ctrl+C` now copies only the selected eye. `Ctrl+V` updates its matching eye on the target frame or adds it if missing, preserving the other eye groups. `Z` restores the target frame.
