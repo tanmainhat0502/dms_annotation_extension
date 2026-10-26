@@ -42,7 +42,7 @@ function beltReset(){document.activeElement?.blur();S.mode='label';S.labelSel='s
   setBeltFrame(0,[1,2]);setBeltFrame(1,[]);setBeltFrame(2,[8]);setBeltFrame(3,[]);
   BT.prev=null;BT.busy=false;BT.points=[];BT.poly=[];show(2);}
 document.addEventListener('keydown',e=>{
-  if(S.labelSel==='face_lmk'&&lmkActive()&&e.code==='KeyX'&&!e.defaultPrevented){
+  if(S.labelSel==='face_lmk'&&lmkActive()&&['KeyX','Delete'].includes(e.code)&&!e.defaultPrevented){
     ED.items[0].pts[0]=null;lmkChanged();e.preventDefault();}
 },true);
 </script>"""
@@ -65,6 +65,14 @@ def main():
         page.wait_for_function('ED.items[0]?.pts[0]?.[0]===10')
         page.keyboard.press('z')
         assert page.evaluate('ED.items[0].pts[0][0]') == 100
+        page.keyboard.press('Delete')
+        assert page.evaluate('ED.items[0].pts[0]') is None
+        page.keyboard.press('z')
+        assert page.evaluate('ED.items[0].pts[0][0]') == 100
+        page.keyboard.press('r')
+        assert page.evaluate('ED.items[0].pts[0]') is None
+        page.keyboard.press('z')
+        assert page.evaluate('ED.items[0].pts[0][0]') == 100
         page.keyboard.press('Control+c')
         page.evaluate('show(3)')
         page.keyboard.press('Control+v')
@@ -76,7 +84,7 @@ def main():
         assert page.evaluate('ED.items[0].pts[0]') is None, 'Native X still marks a point Not found'
         page.keyboard.press('z')
         assert page.evaluate('ED.items[0].pts[0][0]') == 100
-        print('PASS: face 7pt C, Ctrl+C/V and Z; native X remains a point action')
+        print('PASS: face 7pt C, Ctrl+C/V and Z; X, Delete and R remove the selected point')
 
         page.evaluate('beltReset()')
         page.keyboard.press('c')

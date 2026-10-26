@@ -219,6 +219,11 @@
       return true;
     }
     if (!noModifiers) return false;
+    if (!event.shiftKey && (code === "Delete" || code === "Backspace")) {
+      consume(event);
+      if (!event.repeat) deleteEye("selected");
+      return true;
+    }
     if (code === "KeyN" && !event.shiftKey) {
       consume(event);
       if (!event.repeat) setEyeAddMode();

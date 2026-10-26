@@ -139,7 +139,7 @@ The dashed SAM3 box is a processing region, separate from the mask. It is rememb
 
 ## Eye 15pt
 
-Press `N`, then click the center of an eye in the image to create a default 15-point group. Press `Esc` to cancel add mode. `R` deletes the selected eye, `X` deletes all eyes, and `1` / `2` delete the leftmost / rightmost eye. `Shift+X` deletes all and advances to the next frame. `C` copies all eye groups from the nearest earlier frame with eye points (skipping empty frames); `Shift+C` also advances. `Ctrl+C` / `Ctrl+V` copy and paste all eye groups between frames. `Z` undoes the latest eye edit, including point moves and group transforms. `Alt+C` toggles the selected eye's closed state; the **Closed eye** checkbox remains available.
+Press `N`, then click the center of an eye in the image to create a default 15-point group. Press `Esc` to cancel add mode. `R`, `Delete`, or `Backspace` deletes the selected eye; `X` deletes all eyes, and `1` / `2` delete the leftmost / rightmost eye. `Shift+X` deletes all and advances to the next frame. `C` copies all eye groups from the nearest earlier frame with eye points (skipping empty frames); `Shift+C` also advances. `Ctrl+C` / `Ctrl+V` copy and paste all eye groups between frames. `Z` undoes the latest eye edit, including point moves and group transforms. `Alt+C` toggles the selected eye's closed state; the **Closed eye** checkbox remains available.
 
 Select an eye and press `Ctrl+B`. Choose **Selected eye only** or **All eyes in the current frame**, then choose whether to replace matching eyes and keep the others, or replace all target eyes. Matching uses the eye's image position; copying a left eye into a frame containing only the right eye adds the left eye and keeps the right.
 
@@ -147,7 +147,9 @@ Drag an empty area inside the dashed eye box to move all 15 points. Hold `Ctrl` 
 
 ## Face 7pt
 
-`C` copies all seven points from the nearest earlier frame that has placed points; `Shift+C` also advances. `Ctrl+C` / `Ctrl+V` copy and paste the point group between frames. `Z` undoes copying and native point edits. `X` still marks the selected point as Not found.
+Press `N`, then drag a rectangle around the face. The seven numbered points preview inside the rectangle while dragging; release to create the points, then drag individual points to refine them. `Esc` or a second `N` cancels before release. A small drag is ignored. If the frame has a blank seven-point group, creation fills it; otherwise it adds a new group without replacing existing points. The rectangle is only a creation guide, not a saved face bbox.
+
+`C` copies all seven points from the nearest earlier frame that has placed points; `Shift+C` also advances. `Ctrl+C` / `Ctrl+V` copy and paste the point group between frames. `Z` undoes creation, copying and point edits. `R`, `Delete`, `Backspace`, and `X` mark the selected point(s) as Not found. Seatbelt retains native `Delete` for mask selection and `R` for accepting a SAM3 preview.
 
 ## Mark frames with V
 

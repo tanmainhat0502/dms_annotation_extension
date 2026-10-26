@@ -2,7 +2,7 @@
 
 A Chrome extension for faster annotation in **DMS Labeling**. Group frames by clip, edit labels with keyboard shortcuts, and repeat changes across multiple frames.
 
-**Version 1.6.48 · English**
+**Version 1.6.49 · English**
 
 [Download the latest release](https://github.com/tanmainhat0502/dms_annotation_extension/releases/latest) · [Detailed usage guide](extension/README.md) · [Changelog](CHANGELOG.md)
 
@@ -147,12 +147,13 @@ Use these on the labeling canvas, outside text fields. On macOS, `Cmd+B`, `Cmd+C
 | `Z` | Seatbelt: remove the last polygon point, or undo the latest mask edit on this frame. |
 | `C` / `Shift+C` | Face 7pt or seatbelt: copy from the nearest earlier nonempty frame / copy and advance. |
 | `Ctrl+C` / `Ctrl+V` | Face 7pt or seatbelt: copy the current points or mask and paste on another frame. |
-| `Z` | Face 7pt: undo point edits and copied points. `X` keeps its native Not found behavior. |
+| `N`, then drag | Face 7pt: drag a face box. Preview all seven numbered points while dragging; release to create, then adjust individual points. `Esc` cancels. |
+| `R` / `Delete` / `Backspace` | Face 7pt: mark the selected point(s) Not found. `Z` undoes point edits, creation and copies. |
 | Drag inside the dashed eye box | Move all 15 eye points. |
 | `Ctrl` + drag inside the eye box | Rotate all 15 eye points. |
 | Drag an eye edge / corner handle | Resize the eye group; dragging an individual point edits only that point. |
 | `N` | Eye 15pt: click the center of an eye to add a default 15-point group; `Esc` cancels. |
-| `R` / `X` / `Shift+X` | Eye 15pt: delete the selected eye / all eyes / all eyes and advance. |
+| `R` / `Delete` / `Backspace` | Eye 15pt: delete the selected eye. `X` deletes all; `Shift+X` also advances. |
 | `1` / `2` | Eye 15pt: delete the leftmost / rightmost eye. |
 | `C` / `Shift+C` | Eye 15pt: copy all eye groups from the nearest earlier nonempty frame / copy and advance. |
 | `Ctrl+C` / `Ctrl+V` | Eye 15pt: copy all current eye groups to the clipboard / replace the destination frame's groups. |

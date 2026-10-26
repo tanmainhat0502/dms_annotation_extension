@@ -79,6 +79,11 @@ def main():
         assert len(items()) == 1 and items()[0]['pts'][0][0] == 10
         page.keyboard.press('z')
         assert len(items()) == 2
+        page.evaluate('LM.n=1')
+        page.keyboard.press('Delete')
+        assert len(items()) == 1 and items()[0]['pts'][0][0] == 10
+        page.keyboard.press('z')
+        assert len(items()) == 2
         page.keyboard.press('1')
         assert len(items()) == 1 and items()[0]['pts'][0][0] == 100
         page.keyboard.press('z')
@@ -89,7 +94,7 @@ def main():
         assert items() == []
         page.keyboard.press('z')
         assert len(items()) == 2
-        print('PASS: R, 1/2, X and Z delete and restore the intended eye groups')
+        print('PASS: R, Delete, 1/2, X and Z delete and restore the intended eye groups')
 
         page.evaluate('reset(2,[one(200)])')
         page.keyboard.press('c')

@@ -12,7 +12,8 @@
     copyQuickBboxToClipboard, deleteQuickBbox, ensureBboxEditing, ensureBulkDialog,
     ensureCurrentClipOpen, ensureEyeBulkDialog, ensureEyeGroupDragging, ensureEyePanelHint,
     ensureEyeShortcutTracking, eyeLandmarkActive, handleEyeShortcut, deleteEye, undoEye,
-    ensureFaceShortcutTracking, faceLandmarkActive, handleFaceShortcut, undoFace,
+    ensureFaceShortcutTracking, faceLandmarkActive, faceShortcutReady, handleFaceShortcut,
+    cancelFaceCreate, faceCreateStillHere, undoFace,
     handleSeatbeltShortcut,
     ensureEyeTransformDrawing, ensureLabelVisibility, ensureNativeEditing,
     ensureOrganizedPlayback, ensurePointerPerformance, ensurePolygonDrawing,
@@ -76,6 +77,17 @@
     if (!event.shiftKey && eyeLandmarkActive()) {
       consumeKeyEvent(event);
       if (!event.repeat && !event.isComposing) deleteEye("selected");
+      return true;
+    }
+    if (!event.shiftKey && faceLandmarkActive()) {
+      consumeKeyEvent(event);
+      if (!event.repeat && !event.isComposing && faceShortcutReady()) {
+        // Face Delete removes the selected landmark (or selected landmarks).
+        // Reuse that native path so R has identical save and undo behavior.
+        target.dispatchEvent(new KeyboardEvent("keydown", {
+          key: "Delete", code: "Delete", bubbles: true, cancelable: true
+        }));
+      }
       return true;
     }
     return false;
@@ -252,6 +264,7 @@
     ensureEditorAndCanvasHooks();
     if (!pageLabelingReady("seatbelt") && (state.manualMode || state.lastPatch)) cancelManualMode();
     if (state.bboxMode && !bboxLabelingReady()) cancelBboxMode();
+    if (state.faceCreateMode && !faceCreateStillHere()) cancelFaceCreate();
     const playbackPosition = capturePlaybackSidebarPosition();
     state.applying = true;
     try {

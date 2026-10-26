@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.49 - 2026-10-26
+
+- In face 7pt labeling, press `N` and drag a face rectangle to preview the seven numbered landmarks; release to create them. `Esc` cancels, `Z` undoes, and existing points are preserved when adding another group.
+- Keep `Delete` and `Backspace` as deletion shortcuts: on eye 15pt they delete the selected eye like `R`; on face 7pt they mark selected point(s) Not found like `R`. Bounding-box and seatbelt native Delete behavior stays available, and seatbelt `R` still accepts SAM3 previews.
+- Add browser regressions for live preview, cancellation, frame changes, undo, and landmark deletion shortcuts.
+
 ## 1.6.48 - 2026-10-26
 
 - Add `C` / `Shift+C` and `Ctrl+C` / `Ctrl+V` to face 7pt and seatbelt, with `Z` undo for copied annotations. Face 7pt also records native point edits for undo. Keep face `X` for Not found points and seatbelt `R` for SAM3.

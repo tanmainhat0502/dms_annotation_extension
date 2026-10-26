@@ -6,7 +6,7 @@
   const bboxCountForFrame = (...args) => NL.bboxCountForFrame(...args);
   const scheduleBboxFilterRefresh = (...args) => NL.scheduleBboxFilterRefresh(...args);
 
-  const VERSION = "1.6.48";
+  const VERSION = "1.6.49";
 
   const ROOT_ID = "nota-labeling-organizer-v1";
 
@@ -176,6 +176,9 @@
     faceUndoInstalled: false,
     faceClipboard: null,
     faceCopyRequest: null,
+    faceCreateMode: false,
+    faceCreateScope: null,
+    faceCreateDraft: null,
     seatbeltClipboard: null,
     seatbeltCopyRequest: null,
     bboxCopyRequest: null,
@@ -428,6 +431,7 @@
   function pointerGestureActive() {
     try {
       return Boolean(state.manualMode || state.bboxMode || state.eyeGroupDrag ||
+        state.faceCreateMode || state.faceCreateDraft ||
         (typeof VZ !== "undefined" && VZ.pan) ||
         (typeof ED !== "undefined" && (ED.drag || ED.marq || ED.poly?.length)) ||
         (typeof BT !== "undefined" && (BT.drag || BT.poly?.length)) ||
