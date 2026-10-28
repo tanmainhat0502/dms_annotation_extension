@@ -167,7 +167,7 @@
     } catch (_) {}
     const marked = state.genericGSource;
     const currentHasItems = sourceItems.some((item) => label !== "face_lmk" || item.pts?.some(Boolean));
-    if (!currentHasItems && marked?.session === S.sess && marked.generation === S.gen &&
+    if ((!currentHasItems || label === "face_lmk") && marked?.session === S.sess && marked.generation === S.gen &&
         marked.label === label && marked.g === state.rangeStart && marked.items?.length) {
       const markedIndex = base.frames.indexOf(marked.g);
       if (markedIndex >= 0) return {
@@ -184,6 +184,22 @@
         selectedMode: marked.selectedMode,
         selectedRank: marked.selectedRank,
         operation: null
+      };
+    }
+    const vMarked = state.vLabelSource;
+    if (label === "face_lmk" && !Number.isInteger(state.rangeStart) &&
+        vMarked?.session === S.sess && vMarked.generation === S.gen &&
+        vMarked.label === label && state.markedFrames.has(vMarked.g) && vMarked.items?.length) {
+      return {
+        ...base,
+        source: vMarked.g,
+        sourceIndex: base.frames.indexOf(vMarked.g),
+        sourceKey: typeof rvKey === "function" ? rvKey(vMarked.g) : "",
+        vSource: true,
+        label,
+        labelName: genericLabelName(label),
+        sourceItems: cloneGenericItems(vMarked.items),
+        selected: [], selectedMode: "", selectedRank: -1, operation: null
       };
     }
     return {

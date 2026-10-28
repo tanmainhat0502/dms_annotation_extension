@@ -275,6 +275,143 @@ async def test_g_other_label_sources_when_current_is_empty(browser):
     print('PASS: bbox, face 7pt and seatbelt copy from the G frame into an empty current frame')
 
 
+SOURCE_LABEL_FIXTURE = """label=>{
+  S.labelSel=label;S.sess.src_w=2;S.sess.src_h=2;S.ts=Array(600).fill(0);
+  for(const item of Object.values(S.review))item.labels=[label];
+  const eye=x=>({pts:Array.from({length:15},(_,i)=>[x+i,40+i])});
+  const face=()=>({pts:[[0,0],[1,0],[1,1],[0,1],[0,0],[1,1],[1,0]]});
+  const mask=bits=>[{rle:{size:[2,2],counts:window.__notaOrganizerV1.encodeRle(Uint8Array.from(bits))}}];
+  for(let g=225;g<=229;g++){
+    S.ledits[rvKey(g)]={[label]:g===225
+      ? label==='eye_lmk' ? [eye(20),eye(220)]
+        : label==='face_lmk' ? [face()] : mask([1,0,1,0])
+      : g===228 || g===229
+        ? label==='eye_lmk' ? [eye(220)]
+          : label==='face_lmk' ? [{pts:[[9,9],null,null,null,null,null,null]}]
+          : mask([0,0,0,1])
+        : []};
+    S.fstat[rvKey(g)]={[label]:{s:'wip'}};
+  }
+  buildSeq();renderLabList();show(225);
+}"""
+
+
+async def test_g_source_over_partial_targets_and_enter(browser):
+    for label in ('eye_lmk', 'face_lmk', 'seatbelt'):
+        page, server, errors = await setup(browser)
+        label_posts = []
+
+        async def save_label(route):
+            label_posts.append(route.request.post_data_json)
+            await route.fulfill(body='{}', content_type='application/json')
+
+        await page.route('**/api/label_edit', save_label)
+        await page.evaluate(SOURCE_LABEL_FIXTURE, label)
+        await settle(page)
+        await set_g(page, 225)
+        await page.evaluate('show(228)')
+        await open_bulk(page, 'label')
+        name = 'bulkContext' if label == 'seatbelt' else 'eyeBulkContext'
+        context = await page.evaluate('name=>{const c=window.__notaOrganizerV1.state[name];return {source:c.source,gSource:c.gSource}}', name)
+        assert context == {'source': 225, 'gSource': True}, (label, context)
+        assert await page.locator(DIALOG + ' .nl-count').is_disabled()
+        assert await page.locator(DIALOG + ' .nl-apply').is_enabled()
+        await page.keyboard.press('Enter')  # Focus is on the active tab, not the Apply button.
+        await page.wait_for_selector(DIALOG, state='hidden')
+        assert {post['i'] for post in label_posts} == {226, 227, 228}, (label, label_posts)
+        target = next(post for post in label_posts if post['i'] == 228)
+        if label == 'eye_lmk':
+            assert sorted(item['pts'][0][0] for item in target['items']) == [20, 220], target
+        elif label == 'face_lmk':
+            assert target['items'][0]['pts'][0] == [0, 0], target
+        else:
+            mask = await page.evaluate("""()=>{
+              const item=S.ledits[rvKey(228)].seatbelt[0];
+              return Array.from(window.__notaOrganizerV1.decodeRle(item.rle.counts,4));
+            }""")
+            assert mask == [1, 0, 1, 1], mask
+        assert not await page.locator('#nl-marked-frames .nl-range-start-badge').is_visible()
+        assert not server.posts and not errors, (label, errors)
+        await page.close()
+    print('PASS: G source replaces partial eyes/face points or fills seatbelt masks, and Enter applies Label actions')
+
+
+async def test_v_source_to_selected_labels(browser):
+    for label in ('eye_lmk', 'face_lmk', 'seatbelt'):
+        page, server, errors = await setup(browser)
+        label_posts = []
+
+        async def save_label(route):
+            label_posts.append(route.request.post_data_json)
+            await route.fulfill(body='{}', content_type='application/json')
+
+        await page.route('**/api/label_edit', save_label)
+        await page.evaluate(SOURCE_LABEL_FIXTURE, label)
+        await settle(page)
+        await mark(page, [225])
+        await open_bulk(page, 'label')
+        assert await page.locator(DIALOG + ' .nl-apply').is_disabled(), label
+        assert 'No V target frames' in await page.locator(DIALOG + ' .nl-label-panel .nl-preview').inner_text(), label
+        await page.keyboard.press('Escape')
+        await mark(page, [227, 229])
+        source = await page.evaluate('window.__notaOrganizerV1.state.vLabelSource.g')
+        assert source == 225, (label, source)
+        await open_bulk(page, 'label')
+        direction = 'data-direction' if label == 'seatbelt' else 'data-eye-direction'
+        assert 'on' in (await page.locator(DIALOG + f' [{direction}="marked"]').get_attribute('class')).split()
+        assert await page.locator(DIALOG + ' .nl-count').is_disabled()
+        name = 'bulkContext' if label == 'seatbelt' else 'eyeBulkContext'
+        context = await page.evaluate('name=>{const c=window.__notaOrganizerV1.state[name];return {source:c.source,vSource:c.vSource}}', name)
+        assert context == {'source': 225, 'vSource': True}, (label, context)
+        await page.keyboard.press('Enter')
+        await page.wait_for_selector(DIALOG, state='hidden')
+        assert {post['i'] for post in label_posts} == {227, 229}, (label, label_posts)
+        assert await page.locator('#nl-marked-frames').get_attribute('data-count') == '3'
+        await page.evaluate('show(225)')
+        await page.keyboard.press('v')
+        assert await page.evaluate('window.__notaOrganizerV1.state.vLabelSource') is None
+        assert await page.locator('#nl-marked-frames').get_attribute('data-count') == '2'
+        assert not server.posts and not errors, (label, errors)
+        await page.close()
+    page, server, errors = await setup(browser)
+    label_posts = []
+
+    async def save_cross_clip(route):
+        label_posts.append(route.request.post_data_json)
+        await route.fulfill(body='{}', content_type='application/json')
+
+    await page.route('**/api/label_edit', save_cross_clip)
+    await page.evaluate(SOURCE_LABEL_FIXTURE, 'seatbelt')
+    await page.evaluate("""()=>{
+      S.ledits[rvKey(250)]={seatbelt:[]};
+      S.fstat[rvKey(250)]={seatbelt:{s:'wip'}};
+      renderLabList();show(225);
+    }""")
+    await settle(page)
+    await mark(page, [225, 250])
+    await open_bulk(page, 'label')
+    assert await page.evaluate('window.__notaOrganizerV1.state.bulkContext.sourceIndex') == -1
+    await page.keyboard.press('Enter')
+    await page.wait_for_selector(DIALOG, state='hidden')
+    assert {post['i'] for post in label_posts} == {250}, label_posts
+    assert not server.posts and not errors, errors
+    await page.close()
+    print('PASS: first V frame is the source; selected V targets receive eye, face or seatbelt labels')
+
+
+async def test_enter_applies_status_from_focused_button(browser):
+    page, server, errors = await setup(browser)
+    await open_bulk(page, 'status')
+    await choose_status(page, 'done', 'after', '3')
+    await page.locator(DIALOG + ' [data-status-direction="after"]').focus()
+    await page.keyboard.press('Enter')
+    await page.wait_for_selector(DIALOG, state='hidden')
+    assert {post['i'] for post in server.posts} == {229, 230}, server.posts
+    assert not errors, errors
+    await page.close()
+    print('PASS: Enter applies Change status while a direction button has focus')
+
+
 async def test_g_retry_and_other_direction(browser):
     page, server, errors = await setup(browser)
     await set_g(page, 225)
@@ -526,6 +663,9 @@ async def main():
             await test_eye_selected_merge_keeps_opposite_eye(browser)
             await test_g_eye_source_when_current_is_empty(browser)
             await test_g_other_label_sources_when_current_is_empty(browser)
+            await test_g_source_over_partial_targets_and_enter(browser)
+            await test_v_source_to_selected_labels(browser)
+            await test_enter_applies_status_from_focused_button(browser)
             await test_g_retry_and_other_direction(browser)
             await test_failure_and_scope(browser)
             await test_label_action_isolation(browser)

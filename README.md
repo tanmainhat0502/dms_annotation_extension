@@ -2,7 +2,7 @@
 
 A Chrome extension for faster annotation in **DMS Labeling**. Group frames by clip, edit labels with keyboard shortcuts, and repeat changes across multiple frames.
 
-**Version 1.6.56 · English**
+**Version 1.6.57 · English**
 
 [Download the latest release](https://github.com/tanmainhat0502/dms_annotation_extension/releases/latest) · [Detailed usage guide](extension/README.md) · [Changelog](CHANGELOG.md)
 
@@ -62,18 +62,18 @@ Reload your DMS tab and open **Labeling**. Search for a part, expand a clip such
 | Edit bounding boxes | Press `N` and click two opposite corners to create a box. Use `M` to draw a region that deletes boxes inside it. Handles keep tracking the pointer across image edges; boxes dragged outside are clipped on release. |
 | Bulk action tabs | `Ctrl+B` has **Label actions** for copy/delete/adjust and **Change status** for Not checked, In progress, or Done. It remembers the last selected tab, including after reload. |
 | Change frame status in bulk | In **Change status**, select previous/next frames with a count or `end`, choose **Marked frames** from your `V` selection, or press `G` on the first frame to select **From G to current frame** automatically when `Ctrl+B` opens. The G range includes both endpoints. Includes Done and hidden frames, skips frames already at the destination status, and preserves annotations. |
-| Copy annotations | Press `Ctrl+B` → **Label actions** to copy boxes, eye 15pt, face 7pt, or seatbelt edits to previous/next frames. Enter a frame count or `end`, or mark a range endpoint with `G` to automatically select **From G to current frame**. An empty current frame receives annotations captured on the G frame. |
+| Copy annotations | Press `Ctrl+B` → **Label actions** to copy boxes, eye 15pt, face 7pt, or seatbelt edits. Use a count or `end`, mark a range start with `G`, or select frames with `V`. For eye 15pt, face 7pt, and seatbelt, a populated G frame supplies the annotations even when the current frame is partly labeled. |
 | Copy one box | Select a box, then use `Ctrl+B`. Matching target boxes are replaced and duplicates merged; other objects stay. If there is no match, a new box is added. Choosing all boxes replaces the entire target box list. |
 | Adjust any bbox edge | For every bbox label, double-click the middle handle of the top, bottom, left, or right edge and drag it. `Ctrl+B` changes only that coordinate on each existing matching box; its other three coordinates and the number of boxes stay unchanged. |
 | Edit seatbelt masks | Draw an add polygon with `N`, erase with `M`, or accept a green SAM3 preview with `R`. Bulk edits can use just the latest change or the entire mask. |
 | Transform eye 15pt | Drag inside the dashed box to move the eye, `Ctrl` + drag to rotate, or drag its handles to resize all 15 points. |
-| Review and undo | Mark frames with `V`, repeat bbox operations on marked frames, or reopen selected Done frames. `Z` undoes edits; one bbox undo can restore an entire batch. |
+| Review and undo | Mark frames with `V`, repeat bbox operations on marked frames, or reopen selected Done frames. For eye 15pt, face 7pt, and seatbelt label actions, the first V frame is the source; later V frames are targets. `Z` undoes edits; one bbox undo can restore an entire batch. |
 
-**Label actions:** the frame count excludes the current frame. Previous/next operations stay inside the current clip and skip **Done** frames. Saved **Not checked** frames become **In progress**. For every bbox label, marked targets may span clips within the same session and label.
+**Label actions:** the frame count excludes the source frame. Previous/next operations stay inside the current clip and skip **Done** frames. Saved **Not checked** frames become **In progress**. For eye 15pt, face 7pt, and seatbelt, press `V` first on a complete source frame, then on each target frame; `Ctrl+B` selects **V target frames** automatically. The source is excluded, targets may span clips, and V marks remain after saving. For bbox labels, V keeps its existing target-marking behavior.
 
 **Change status:** affects the active label only. Previous/next counts include the current frame, then continue in the selected direction through the complete current-label clip, including frames hidden by filters. **Marked frames** can span clips and include the current frame if marked. `V` marks/unmarks any status for every label. Marks remain available after saving; use `V` or **Clear selection** to remove them. Changing session or label clears that selection.
 
-**G range:** press `G` to mark a start frame, navigate to the other end, then press `Ctrl+B`. **From G to current frame** is selected automatically in either tab. The range stays within one clip; no count is needed. Status changes include both endpoints. Label actions normally copy from the current frame to the other frames in the range. If the current frame has no annotations, the annotations captured on the G frame become the source and are copied through the current frame. This applies to bounding boxes, face 7pt, eye 15pt, and seatbelt masks. G clears after a successful range action, but stays if you cancel or saving fails. You can also press `G` again on the marked frame to clear it, or on another frame to move the start. Changing session or label clears it.
+**G range:** press `G` to mark a start frame, navigate to the other end, then press `Ctrl+B`. **From G to current frame** is selected automatically in either tab. The range stays within one clip; no count is needed. Status changes include both endpoints. For eye 15pt, face 7pt, and seatbelt, a populated G frame is the label source even when the current frame has partial annotations; the copy includes the current frame. If G has no annotations, the current frame remains the source. Bbox labels keep their existing current-frame source when it is populated, using G only when the current frame is empty. G clears after a successful range action, but stays if you cancel or saving fails. Press `G` again on the marked frame to clear it, or on another frame to move the start. Changing session or label clears it.
 
 **Box matching uses geometry**, not visual object recognition. Boxes that overlap by at least 90% IoU are highlighted red. The image also shows a bbox count.
 
@@ -117,7 +117,7 @@ Use these on the labeling canvas, outside text fields. On macOS, `Cmd+B`, `Cmd+C
 | `F` | Toggle the current frame between Done and In progress. |
 | `K` | Show / hide seatbelt masks or eye 15pt without changing data. |
 | `Ctrl+B` | Open **Label actions** or **Change status**, remembering the last selected tab. |
-| `V` | Mark/unmark a frame in any status for bulk status changes. Every bbox label also uses these marks for label actions. |
+| `V` | Mark/unmark frames for bulk status changes. For eye 15pt, face 7pt, and seatbelt label actions, the first V mark is the source and later marks are targets; bbox marks keep their existing behavior. |
 | `G` | Mark or clear the start of a clip range for `Ctrl+B` → **From G to current frame**. |
 | `Enter` | Apply the action in an open bulk dialog. |
 | `Esc` | Cancel drawing or a pending bulk edit; in the part search field, clear the filter. Already saved edits require Undo. |

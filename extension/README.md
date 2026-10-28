@@ -1,6 +1,6 @@
 # NOTA Labeling Organizer — usage guide
 
-**Version 1.6.55 · English**
+**Version 1.6.57 · English**
 
 For installation screenshots and the complete shortcut tables, see the [GitHub README](https://github.com/tanmainhat0502/dms_annotation_extension#readme).
 
@@ -64,9 +64,9 @@ The dialog has two tabs: **Label actions** and **Change status**. It remembers y
 
 The source frame is excluded from the count. Done targets are skipped; saved Not checked targets become In progress. Up to four saves run at a time. On an error, no new saves are started; earlier successful saves remain applied.
 
-For every bbox label, `V` marks targets and this tab offers **Marked frames**. These targets can span clips in the same session and label.
+For eye 15pt, face 7pt, and seatbelt, press `V` first on a frame with complete annotations and then on each target frame. The first V frame is the source; **V target frames** is selected automatically in **Label actions**. Targets may span clips in the same session and label; the source is excluded. V marks remain after saving. For bbox labels, `V` keeps marking targets as before.
 
-The G range stays in one clip and excludes the source frame for all label actions, including copy, delete, edge adjustment and seatbelt mask edits. The first G frame may be before or after the source. For eye 15pt, if the current frame has no eyes, the G frame's eyes become the source and are copied to the intervening frames, including the current frame. The dialog defaults to copying all eyes from G; **Selected eye only** is also available when an eye was selected on the G frame.
+The G range stays in one clip and excludes the source frame for label actions. For eye 15pt, face 7pt, and seatbelt, a populated G frame is the source even if the current frame contains partial annotations; all intervening frames, including the current frame, receive them. If G is empty, the current frame remains the source. Bbox labels retain the current frame as source when it is populated. The dialog defaults to all G eyes; **Selected eye only** remains available when an eye was selected on G.
 
 `Esc` / **Cancel** discards the pending region; it does not undo edits already saved. A running bulk save cannot be canceled through this dialog.
 
@@ -161,7 +161,7 @@ The earlier rectangle method is available with `Shift+N`: drag over the visible 
 
 For every label, `V` marks or unmarks the current frame, whether it is Done, In progress, or Not checked. Mark any frames in the same session and label, then use **Ctrl+B → Change status → Marked frames** and select a destination. To reopen Done frames, choose **In progress**.
 
-Marks remain after saving and when status filters hide the rows, so you can reuse the selection. Press `V` again or **Clear selection** to remove marks. Changing the session or label clears them. Every bbox label also uses the same marks in **Label actions**. `F` still toggles the current frame's Done / In progress status.
+Marks remain after saving and when status filters hide the rows, so you can reuse the selection. Press `V` again or **Clear selection** to remove marks. Changing the session or label clears them. Every bbox label also uses the same marks in **Label actions**. For eye 15pt, face 7pt, and seatbelt, the first V mark supplies the label source and later V marks select targets; removing the source mark clears that source. `F` still toggles the current frame's Done / In progress status.
 
 ## Updates
 

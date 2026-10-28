@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.57 - 2026-10-28
+
+- For seatbelt, eye 15pt, and face 7pt, a populated G frame now stays the label source even if the current frame has partial annotations. A blank G frame still uses the current frame as source.
+- Add V source-to-selected-frame label copying for these three labels: the first V mark captures the source; subsequent V marks are targets. Status changes keep including all marked frames, and bbox V behavior is unchanged.
+- Enter now applies the active Label actions or Change status operation even when a tab or direction button has focus. Add browser regressions for G and V copying, partial targets, and keyboard application.
+
 ## 1.6.56 - 2026-10-26
 
 - Extend G-source copying to bounding boxes, face 7pt, and seatbelt masks. When the current frame is empty, Ctrl+B uses the annotation captured on the G frame and includes the current frame in the range.

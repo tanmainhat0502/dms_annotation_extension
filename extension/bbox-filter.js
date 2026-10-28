@@ -129,6 +129,7 @@
       state.eyeGSource = null;
       state.genericGSource = null;
       state.seatbeltGSource = null;
+      state.vLabelSource = null;
       state.markedScope = currentLabelScope();
       state.bboxMarkedScope = state.markedScope;
     }
@@ -161,12 +162,19 @@
       existing?.remove();
       return;
     }
-    if (existing) return;
-    const marker = document.createElement("span");
-    marker.className = "nl-frame-mark";
-    marker.textContent = bboxMode ? "◆ V" : "✓ V";
-    marker.title = "Frame marked with V";
-    insertBeforeFrameName(li, marker);
+    const marker = existing || document.createElement("span");
+    const source = !bboxMode && state.vLabelSource?.g === Number(li.dataset.g);
+    const text = source ? "◆ V source" : bboxMode ? "◆ V" : "✓ V";
+    const title = source ? "First V frame: source for Label actions" : "Frame marked with V";
+    if (!existing) {
+      marker.className = "nl-frame-mark";
+      marker.textContent = text;
+      marker.title = title;
+      insertBeforeFrameName(li, marker);
+    } else {
+      if (marker.textContent !== text) marker.textContent = text;
+      if (marker.title !== title) marker.title = title;
+    }
   }
 
   // state.markedRows (frame g -> marked li) lets V toggles touch only the rows
@@ -179,7 +187,10 @@
       state.markedRowsMode = bboxMode;
     }
     for (const [g, li] of rows) {
-      if (selectedFrames.has(g) && li.isConnected) continue;
+      if (selectedFrames.has(g) && li.isConnected) {
+        setFrameMarker(li, true, bboxMode);
+        continue;
+      }
       setFrameMarker(li, false);
       rows.delete(g);
     }
@@ -255,7 +266,7 @@
     if (state.rangeStart !== null && S.labelSel === "eye_lmk") {
       let items = [];
       try {
-        if (typeof ED !== "undefined" && ED.lab === "eye_lmk" && Array.isArray(ED.items)) {
+        if (typeof ED !== "undefined" && ED.key === rvKey(g) && ED.lab === "eye_lmk" && Array.isArray(ED.items)) {
           items = NL.cloneEyeItems(ED.items);
         }
         if (!items.length && typeof NL.currentEyeItems === "function") items = NL.currentEyeItems();
@@ -294,8 +305,37 @@
 
   function clearMarkedFrames() {
     if (quickBboxReady()) state.bboxMarkedFrames.clear();
-    else state.markedFrames.clear();
+    else {
+      state.markedFrames.clear();
+      state.vLabelSource = null;
+    }
     updateMarkedUI();
+  }
+
+  function captureVLabelSource(g) {
+    const scope = { ...currentLabelScope(), g };
+    if (S.labelSel === "eye_lmk") {
+      let items = [];
+      try {
+        if (typeof ED !== "undefined" && ED.key === rvKey(g) && ED.lab === "eye_lmk" && Array.isArray(ED.items))
+          items = NL.cloneEyeItems(ED.items);
+        else items = NL.currentEyeItems();
+      } catch (_) {}
+      return { ...scope, items, selected: typeof LM !== "undefined" &&
+        Number.isInteger(LM.n) && LM.n >= 0 && LM.n < items.length ? [LM.n] : [] };
+    }
+    if (S.labelSel === "face_lmk") {
+      const items = NL.cloneGenericItems(NL.currentGenericItems("face_lmk"))
+        .filter((item) => item.pts?.some(Boolean));
+      return { ...scope, items, selected: [] };
+    }
+    if (S.labelSel === "seatbelt") {
+      const liveMask = typeof BT !== "undefined" && BT.key === rvKey(g) && BT.mask?.length
+        ? BT.mask.slice() : null;
+      return { ...scope, maskPromise: liveMask?.some(Boolean)
+        ? Promise.resolve(liveMask) : NL.getFrameMask(g, S.gen).catch(() => null) };
+    }
+    return null;
   }
 
   function toggleMarkedFrame() {
@@ -307,10 +347,13 @@
     const selectedFrames = bboxMode ? state.bboxMarkedFrames : state.markedFrames;
     if (selectedFrames.has(g)) {
       selectedFrames.delete(g);
+      if (!bboxMode && state.vLabelSource?.g === g) state.vLabelSource = null;
       updateMarkedUI();
       notify(`Current frame unmarked · ${selectedFrames.size} remaining`);
       return;
     }
+    if (!bboxMode && !state.vLabelSource && ["eye_lmk", "face_lmk", "seatbelt"].includes(S.labelSel))
+      state.vLabelSource = captureVLabelSource(g);
     selectedFrames.add(g);
     updateMarkedUI();
     notify(`${selectedFrames.size} frames marked · Ctrl+B to choose Label actions or Change status`);

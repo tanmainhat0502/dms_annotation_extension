@@ -278,7 +278,7 @@
       }
     } catch (_) {}
     const marked = state.eyeGSource;
-    if (!sourceItems.length && marked?.session === S.sess && marked.generation === S.gen &&
+    if (marked?.session === S.sess && marked.generation === S.gen &&
         marked.label === "eye_lmk" && marked.g === state.rangeStart && marked.items?.length) {
       const markedIndex = base.frames.indexOf(marked.g);
       if (markedIndex >= 0) {
@@ -293,9 +293,21 @@
         }
       }
     }
+    const vMarked = state.vLabelSource;
+    let vSource = false;
+    if (!Number.isInteger(state.rangeStart) && vMarked?.session === S.sess &&
+        vMarked.generation === S.gen && vMarked.label === "eye_lmk" &&
+        state.markedFrames.has(vMarked.g) && vMarked.items?.length) {
+      sourceItems = cloneEyeItems(vMarked.items);
+      selected = vMarked.selected.filter((index) => index >= 0 && index < sourceItems.length);
+      source = vMarked.g;
+      sourceIndex = base.frames.indexOf(source);
+      sourceKey = typeof rvKey === "function" ? rvKey(source) : "";
+      vSource = true;
+    }
     return {
       ...base,
-      source, sourceIndex, sourceKey, rangeEndIndex, gSource,
+      source, sourceIndex, sourceKey, rangeEndIndex, gSource, vSource,
       label: "eye_lmk",
       labelName: "eye 15pt",
       sourceItems,

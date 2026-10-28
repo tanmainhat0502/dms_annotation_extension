@@ -6,7 +6,7 @@
   const bboxCountForFrame = (...args) => NL.bboxCountForFrame(...args);
   const scheduleBboxFilterRefresh = (...args) => NL.scheduleBboxFilterRefresh(...args);
 
-  const VERSION = "1.6.56";
+  const VERSION = "1.6.57";
 
   const ROOT_ID = "nota-labeling-organizer-v1";
 
@@ -124,6 +124,7 @@
     eyeGSource: null,
     genericGSource: null,
     seatbeltGSource: null,
+    vLabelSource: null,
     rangeRow: null,
     bboxMarkedFrames: new Set(),
     bboxMarkedScope: null,
